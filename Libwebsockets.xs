@@ -7,7 +7,7 @@
 
 #include <libwebsockets.h>
 
-#define WEBSOCKET_CLASS "Net::Libwebsockets::WebSocket"
+#define WEBSOCKET_CLASS "Net::Libwebsockets::WebSocket::Client"
 
 #define NET_LWS_LOCAL_PROTOCOL_NAME "lws-net-libwebsockets"
 
@@ -33,6 +33,7 @@ typedef struct {
 */
 
 typedef struct {
+    tTHX aTHX;
     SV* perlobj;
 } net_lws_abstract_loop_t;
 
@@ -50,8 +51,9 @@ static const struct lws_extension default_extensions[] = {
 };
 
 typedef struct {
-    //SV*                 deferred;
-    struct lws_context  *context;
+    my_perl_context_t* perl_context;
+    net_lws_abstract_loop_t* abstract_loop;
+    struct lws_context *lws_context
 } connect_state_t;
 
 static int
@@ -62,7 +64,9 @@ net_lws_callback(
     void *in,
     size_t len
 ) {
+fprintf(stderr, "net_lws_callback\n");
     my_perl_context_t* my_perl_context = user;
+fprintf(stderr, "perl_context: %p\n", my_perl_context);
 
     pTHX = my_perl_context->aTHX;
 
@@ -119,10 +123,11 @@ SV* _ptr_to_svrv(pTHX_ void* ptr, HV* stash) {
 
 static int
 init_pt_custom (struct lws_context *cx, void *_loop, int tsi) {
-fprintf(stderr, "init_pt_custom\n");
-    net_lws_abstract_loop_t* myloop_p = (net_lws_abstract_loop_t*) lws_evlib_tsi_to_evlib_pt(cx, tsi);
+    net_lws_abstract_loop_t* myloop_p = lws_evlib_tsi_to_evlib_pt(cx, tsi);
 
-    myloop_p->perlobj = (SV *) _loop;
+    net_lws_abstract_loop_t *sourceloop_p = (net_lws_abstract_loop_t *) _loop;
+
+    memcpy(myloop_p, sourceloop_p, sizeof(net_lws_abstract_loop_t));
 
     return 0;
 }
@@ -131,10 +136,13 @@ static int
 custom_io_accept (struct lws *wsi) {
 fprintf(stderr, "custom_io_accept\n");
     net_lws_abstract_loop_t* myloop_p = (net_lws_abstract_loop_t*) lws_evlib_wsi_to_evlib_pt(wsi);
+    fprintf(stderr, "\tabstract loop: %p\n", myloop_p);
 
     int fd = lws_get_socket_fd(wsi);
 
     SV* myloop_sv = myloop_p->perlobj;
+pTHX = myloop_p->aTHX;
+sv_dump(myloop_sv);
 
     // TODO: Call $myloop_sv->add_fd(fd); return 1 on error.
     // That should set to read.
@@ -157,9 +165,11 @@ fprintf(stderr, "custom_io\n");
     if (flags & LWS_EV_READ) edits |= POLLIN;
 
     if (flags & LWS_EV_START) {
+fprintf(stderr, "FD %d: add %d\n", fd, edits);
         // TODO: Call $myloop_sv->add_to_fd(fd, edits);
     }
     else {
+fprintf(stderr, "FD %d: remove %d\n", fd, edits);
         // TODO: Call $myloop_sv->remove_from_fd(fd, edits);
     }
 }
@@ -237,8 +247,13 @@ _new (const char* class, SV* hostname, int port, SV* path, int tls_opts)
 
         info.event_lib_custom = &evlib_custom;
 
-        void *foreign_loops[1];
-        foreign_loops[0] = &PL_sv_undef; // for grins TODO
+        net_lws_abstract_loop_t* abstract_loop;
+        Newx(abstract_loop, 1, net_lws_abstract_loop_t);
+        abstract_loop->aTHX = aTHX;
+        abstract_loop->perlobj = newSVpvs("hello there");
+
+        void *foreign_loops[] = { abstract_loop };
+        fprintf(stderr, "abstract loop: %p\n", abstract_loop);
         info.foreign_loops = foreign_loops;
 
         info.port = CONTEXT_PORT_NO_LISTEN; /* we do not run any server */
@@ -273,16 +288,24 @@ _new (const char* class, SV* hostname, int port, SV* path, int tls_opts)
         client.ssl_connection = tls_opts;
         client.local_protocol_name = NET_LWS_LOCAL_PROTOCOL_NAME;
 
-        RETVAL = &PL_sv_undef;
+        // The callback’s `user`:
+        client.userdata = my_perl_context;
+
+        if (!lws_client_connect_via_info(&client)) {
+            lws_context_destroy(context);
+            croak("lws connect failed");
+        }
+
+        connect_state_t* connect_state;
+        Newx(connect_state, 1, connect_state_t);
+
+        fprintf(stderr, "my_perl_context: %p\n", my_perl_context);
+
+        connect_state->perl_context = my_perl_context;
+        connect_state->lws_context = context;
+        connect_state->abstract_loop = abstract_loop;
+
+        RETVAL = _ptr_to_svrv(aTHX_ connect_state, gv_stashpv(WEBSOCKET_CLASS, FALSE));
+
     OUTPUT:
         RETVAL
-
-##    return _ptr_to_svrv(aTHX_ connstate_p, gv_stashpv(WEBSOCKET_CLASS, 
-##
-##
-##    if (!lws_client_connect_via_info(&client)) {
-##        lws_context_destroy(context);
-##        croak("lws connect failed");
-##    }
-##
-##}
