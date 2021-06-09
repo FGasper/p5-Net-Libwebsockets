@@ -119,6 +119,7 @@ SV* _ptr_to_svrv(pTHX_ void* ptr, HV* stash) {
 
 static int
 init_pt_custom (struct lws_context *cx, void *_loop, int tsi) {
+fprintf(stderr, "init_pt_custom\n");
     net_lws_abstract_loop_t* myloop_p = (net_lws_abstract_loop_t*) lws_evlib_tsi_to_evlib_pt(cx, tsi);
 
     myloop_p->perlobj = (SV *) _loop;
@@ -128,6 +129,7 @@ init_pt_custom (struct lws_context *cx, void *_loop, int tsi) {
 
 static int
 custom_io_accept (struct lws *wsi) {
+fprintf(stderr, "custom_io_accept\n");
     net_lws_abstract_loop_t* myloop_p = (net_lws_abstract_loop_t*) lws_evlib_wsi_to_evlib_pt(wsi);
 
     int fd = lws_get_socket_fd(wsi);
@@ -136,10 +138,13 @@ custom_io_accept (struct lws *wsi) {
 
     // TODO: Call $myloop_sv->add_fd(fd); return 1 on error.
     // That should set to read.
+
+    return 0;
 }
 
 static void
 custom_io (struct lws *wsi, unsigned int flags) {
+fprintf(stderr, "custom_io\n");
     net_lws_abstract_loop_t* myloop_p = (net_lws_abstract_loop_t*) lws_evlib_wsi_to_evlib_pt(wsi);
 
     int fd = lws_get_socket_fd(wsi);
@@ -161,13 +166,17 @@ custom_io (struct lws *wsi, unsigned int flags) {
 
 static int
 custom_io_close (struct lws *wsi) {
+fprintf(stderr, "custom_io_close\n");
     net_lws_abstract_loop_t* myloop_p = (net_lws_abstract_loop_t*) lws_evlib_wsi_to_evlib_pt(wsi);
 
     int fd = lws_get_socket_fd(wsi);
+fprintf(stderr, "closing fd %d\n", fd);
 
     SV* myloop_sv = myloop_p->perlobj;
 
     // TODO: Call $myloop_sv->remove_from_fd(fd); return 1 on error.
+
+    return 0;
 }
 
 
@@ -201,6 +210,7 @@ _new (const char* class, SV* hostname, int port, SV* path, int tls_opts)
 
         const struct lws_event_loop_ops event_loop_ops_custom = {
             .name                   = "net-lws-custom-loop",
+
             .init_pt                = init_pt_custom,
             .init_vhost_listen_wsi  = custom_io_accept,
             .sock_accept            = custom_io_accept,
@@ -226,6 +236,10 @@ _new (const char* class, SV* hostname, int port, SV* path, int tls_opts)
         };
 
         info.event_lib_custom = &evlib_custom;
+
+        void *foreign_loops[1];
+        foreign_loops[0] = &PL_sv_undef; // for grins TODO
+        info.foreign_loops = foreign_loops;
 
         info.port = CONTEXT_PORT_NO_LISTEN; /* we do not run any server */
 

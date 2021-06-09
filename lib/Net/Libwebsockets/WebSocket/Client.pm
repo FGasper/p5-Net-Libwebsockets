@@ -19,13 +19,11 @@ sub new {
 
     $path .= "?$query" if defined $query && length $query;
 
-    my $port;
-
     $auth =~ m<\A (.+?) (?: : ([0-9]+))? \z>x or do {
         Carp::croak "Bad URL authority ($auth)";
     };
 
-    my ($hostname, $port = ($1, $2);
+    my ($hostname, $port) = ($1, $2);
 
     my $tls_opts = ($scheme eq 'ws') ? 0 : Net::Libwebsockets::LCCSCF_USE_SSL;
 
@@ -36,5 +34,6 @@ sub new {
     }
 
     return $class->_new( $hostname, $port, $path, $tls_opts);
+}
 
 1;
