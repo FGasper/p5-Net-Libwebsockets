@@ -39,6 +39,7 @@ typedef struct {
 
 typedef struct {
     tTHX aTHX;
+    SV* deferred;
 } my_perl_context_t;
 
 static const struct lws_extension default_extensions[] = {
@@ -132,6 +133,21 @@ init_pt_custom (struct lws_context *cx, void *_loop, int tsi) {
     return 0;
 }
 
+static void _call_method(pTHX_ SV* loop_obj, const char* method_name, SV** args, unsigned argslen) {
+    PUSHMARK(SP);
+    EXTEND(SP, 1 + argslen);
+
+    PUSHs(loop_obj);    // not mortalized, per perlcall
+
+    for (unsigned i=0; i<argslen; i++) {
+        mPUSHs(args[i]);
+    }
+
+    PUTBACK;
+
+    call_method(method_name, G_DISCARD);
+}
+
 static int
 custom_io_accept (struct lws *wsi) {
 fprintf(stderr, "custom_io_accept\n");
@@ -141,11 +157,10 @@ fprintf(stderr, "custom_io_accept\n");
     int fd = lws_get_socket_fd(wsi);
 
     SV* myloop_sv = myloop_p->perlobj;
-pTHX = myloop_p->aTHX;
-sv_dump(myloop_sv);
 
-    // TODO: Call $myloop_sv->add_fd(fd); return 1 on error.
-    // That should set to read.
+    SV** args = { newSViv(fd) };
+
+    _call_method(aTHX_ myloop_sv, "add_fd", args, 1);
 
     return 0;
 }
@@ -164,14 +179,20 @@ fprintf(stderr, "custom_io\n");
     if (flags & LWS_EV_WRITE) edits |= POLLOUT;
     if (flags & LWS_EV_READ) edits |= POLLIN;
 
+    char *method_name;
+
     if (flags & LWS_EV_START) {
+        method_name = "add_to_fd";
 fprintf(stderr, "FD %d: add %d\n", fd, edits);
-        // TODO: Call $myloop_sv->add_to_fd(fd, edits);
     }
     else {
+        method_name = "remove_from_fd";
 fprintf(stderr, "FD %d: remove %d\n", fd, edits);
-        // TODO: Call $myloop_sv->remove_from_fd(fd, edits);
     }
+
+    SV** args = { newSViv(fd), newSVuv(flags) }
+
+    _call_method(aTHX_ myloop_sv, method_name, args, 2);
 }
 
 static int
@@ -184,7 +205,9 @@ fprintf(stderr, "closing fd %d\n", fd);
 
     SV* myloop_sv = myloop_p->perlobj;
 
-    // TODO: Call $myloop_sv->remove_from_fd(fd); return 1 on error.
+    SV** args = { newSViv(fd) };
+
+    _call_method(aTHX_ myloop_sv, "remove_fd", args, 1);
 
     return 0;
 }
@@ -200,13 +223,15 @@ BOOT:
     newCONSTSUB(gv_stashpv("Net::Libwebsockets", FALSE), "LCCSCF_SKIP_SERVER_CERT_HOSTNAME_CHECK", newSVuv(LCCSCF_SKIP_SERVER_CERT_HOSTNAME_CHECK));
     newCONSTSUB(gv_stashpv("Net::Libwebsockets", FALSE), "LCCSCF_ALLOW_EXPIRED", newSVuv(LCCSCF_ALLOW_EXPIRED));
     newCONSTSUB(gv_stashpv("Net::Libwebsockets", FALSE), "LCCSCF_ALLOW_INSECURE", newSVuv(LCCSCF_ALLOW_INSECURE));
+    newCONSTSUB(gv_stashpv("Net::Libwebsockets", FALSE), "LWS_EV_READ", newSVuv(LWS_EV_READ));
+    newCONSTSUB(gv_stashpv("Net::Libwebsockets", FALSE), "LWS_EV_WRITE", newSVuv(LWS_EV_WRITE));
 
 MODULE = Net::Libwebsockets     PACKAGE = Net::Libwebsockets::WebSocket::Client
 
 PROTOTYPES: DISABLE
 
 SV*
-_new (const char* class, SV* hostname, int port, SV* path, int tls_opts)
+_new (const char* class, SV* hostname, int port, SV* path, int tls_opts, SV* loop_obj, SV* deferred)
     CODE:
         struct lws_context_creation_info info;
         struct lws_client_connect_info client;
@@ -233,6 +258,8 @@ _new (const char* class, SV* hostname, int port, SV* path, int tls_opts)
         my_perl_context_t* my_perl_context;
         Newx(my_perl_context, 1, my_perl_context_t); // TODO clean up
         my_perl_context->aTHX = aTHX;
+        my_perl_context->deferred = deferred;
+        SvREFCNT_inc(deferred);
 
         const lws_plugin_evlib_t evlib_custom = {
             .hdr = {
@@ -250,7 +277,8 @@ _new (const char* class, SV* hostname, int port, SV* path, int tls_opts)
         net_lws_abstract_loop_t* abstract_loop;
         Newx(abstract_loop, 1, net_lws_abstract_loop_t);
         abstract_loop->aTHX = aTHX;
-        abstract_loop->perlobj = newSVpvs("hello there");
+        abstract_loop->perlobj = loop_obj;
+        SvREFCNT_inc(loop_obj);
 
         void *foreign_loops[] = { abstract_loop };
         fprintf(stderr, "abstract loop: %p\n", abstract_loop);
@@ -309,3 +337,9 @@ _new (const char* class, SV* hostname, int port, SV* path, int tls_opts)
 
     OUTPUT:
         RETVAL
+
+# ----------------------------------------------------------------------
+
+MODULE = Net::Libwebsockets     PACKAGE = Net::Libwebsockets::WebSocket::Courier
+
+PROTOTYPES: DISABLE
