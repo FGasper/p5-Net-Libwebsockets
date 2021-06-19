@@ -99,7 +99,7 @@ SV* _ptr_to_svrv(pTHX_ void* ptr, HV* stash) {
 }
 
 void* svrv_to_ptr(pTHX_ SV* svrv) {
-    return (void *) SvUV( SvRV(svrv) );
+    return (void *) (intptr_t) SvUV( SvRV(svrv) );
 }
 
 static void _call_sv_trap(pTHX_ SV* cbref, SV** args, unsigned argslen) {
@@ -223,7 +223,10 @@ void _on_ws_message(pTHX_ my_perl_context_t* my_perl_context, SV* msgsv) {
 
     sv_2mortal(msgsv);
 
-    unsigned cbcount;
+    // Because of the assert() below this initialization isn’t needed,
+    // but some compilers aren’t smart enough to realize that.
+    unsigned cbcount = 0;
+
     SV** cbs;
 
     switch (my_perl_context->message_type) {
@@ -466,7 +469,7 @@ MODULE = Net::Libwebsockets     PACKAGE = Net::Libwebsockets::WebSocket::Client
 PROTOTYPES: DISABLE
 
 void
-lws_service_fd( UV lws_context_uv, int fd, int events )
+lws_service_fd( intptr_t lws_context_uv, int fd, int events )
     CODE:
         fprintf(stderr, "lws_service_fd - ctx: %" UVf ", fd: %d, events: %d\n", lws_context_uv, fd, events);
         struct lws_context *context = (void *)lws_context_uv;
@@ -562,7 +565,7 @@ _new (const char* class, SV* hostname, int port, SV* path, int tls_opts, SV* loo
         fprintf(stderr, "lws context: %" UVf "\n", (UV) context);
         my_perl_context->lws_context = context;
 
-        SV* set_ctx_args[] = { sv_2mortal( newSVuv((UV) context) ) };
+        SV* set_ctx_args[] = { sv_2mortal( newSVuv((intptr_t) context) ) };
         _call_object_method(aTHX_ loop_obj, "set_lws_context", 1, set_ctx_args);
 
         memset(&client, 0, sizeof client);
