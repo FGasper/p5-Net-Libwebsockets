@@ -11,6 +11,7 @@ sub new {
 
 sub set_lws_context {
     my ($self, $ctx) = @_;
+print "===== set context: $self $ctx\n";
 
     $self->{'lws_context'} = $ctx;
 

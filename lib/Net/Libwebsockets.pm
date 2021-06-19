@@ -7,7 +7,7 @@ use warnings;
 
 =head1 NAME
 
-Net::Libwebsockets
+Net::Libwebsockets - L<libwebsockets|https://libwebsockets.org/> in Perl
 
 =head1 SYNOPSIS
 

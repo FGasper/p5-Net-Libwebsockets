@@ -10,12 +10,16 @@ use Net::Libwebsockets ();
 use Promise::XS ();
 
 my @_REQUIRED = qw( url event );
+my %_KNOWN = map { $_ => 1 } (@_REQUIRED, 'tls');
 
 sub connect {
     my (%opts) = @_;
 
     my @missing = grep { !$opts{$_} } @_REQUIRED;
-    die "Need: @missing" if @missing;
+    Carp::croak "Need: @missing" if @missing;
+
+    my @extra = sort grep { !$_KNOWN{$_} } keys %opts;
+    Carp::croak "Unknown: @extra" if @extra;
 
     my ($url, $event, $tls_opt) = @opts{'url', 'event', 'tls'};
 
@@ -39,13 +43,14 @@ sub connect {
 
     $tls_flags |= $tls_opt if $tls_opt;
 
-    my $deferred = Promise::XS::deferred();
+    my $connected_d = Promise::XS::deferred();
+    my $done_d      = Promise::XS::deferred();
 
     my $loop_obj = _get_loop_obj($event);
 
-    my $wsc = $class->_new($hostname, $port, $path, $tls_flags, $loop_obj, $deferred);
+    my $wsc = __PACKAGE__->_new($hostname, $port, $path, $tls_flags, $loop_obj, $connected_d, $done_d);
 
-    return $deferred->promise()->finally( sub { undef $wsc } );
+    return $connected_d->promise()->finally( sub { undef $wsc } );
 }
 
 sub _get_loop_obj {

@@ -7,7 +7,10 @@
 
 #include <libwebsockets.h>
 
+#include <arpa/inet.h>
+
 #define WEBSOCKET_CLASS "Net::Libwebsockets::WebSocket::Client"
+#define COURIER_CLASS "Net::Libwebsockets::WebSocket::Courier"
 
 #define NET_LWS_LOCAL_PROTOCOL_NAME "lws-net-libwebsockets"
 
@@ -32,14 +35,44 @@ typedef struct {
 } frame_t;
 */
 
-typedef struct {
-    tTHX aTHX;
-    SV* perlobj;
-} net_lws_abstract_loop_t;
+typedef enum {
+    NET_LWS_MESSAGE_TYPE_TEXT,
+    NET_LWS_MESSAGE_TYPE_BINARY,
+} message_type_t;
 
 typedef struct {
     tTHX aTHX;
-    SV* deferred;
+
+    SV* perlobj;
+
+    struct lws_context* lws_context;
+} net_lws_abstract_loop_t;
+
+typedef struct {
+    struct lws *wsi;
+    struct lws_context* lws_context;
+
+    unsigned on_text_count;
+    SV** on_text;
+
+    unsigned on_binary_count;
+    SV** on_binary;
+
+    SV* done_d;
+} courier_t;
+
+typedef struct {
+    tTHX aTHX;
+    SV* connect_d;
+    SV* done_d;
+
+    struct lws_context* lws_context;
+
+    courier_t* courier;
+
+    char* message_content;
+    STRLEN content_length;
+    message_type_t message_type;
 } my_perl_context_t;
 
 static const struct lws_extension default_extensions[] = {
@@ -54,8 +87,167 @@ static const struct lws_extension default_extensions[] = {
 typedef struct {
     my_perl_context_t* perl_context;
     net_lws_abstract_loop_t* abstract_loop;
-    struct lws_context *lws_context
+    struct lws_context *lws_context;
 } connect_state_t;
+
+SV* _ptr_to_svrv(pTHX_ void* ptr, HV* stash) {
+    SV* referent = newSVuv( PTR2UV(ptr) );
+    SV* retval = newRV_noinc(referent);
+    sv_bless(retval, stash);
+
+    return retval;
+}
+
+void* svrv_to_ptr(pTHX_ SV* svrv) {
+    return (void *) SvUV( SvRV(svrv) );
+}
+
+static void _call_sv_trap(pTHX_ SV* cbref, SV** args, unsigned argslen) {
+    dSP;
+
+    ENTER;
+    SAVETMPS;
+
+    PUSHMARK(SP);
+    EXTEND(SP, argslen);
+
+    for (unsigned i=0; i<argslen; i++) {
+        mPUSHs(args[i]);
+    }
+
+    PUTBACK;
+
+    call_sv(cbref, G_VOID|G_DISCARD|G_EVAL);
+
+    SV* err = ERRSV;
+
+    if (SvTRUE(err)) {
+        warn("Callback error: %" SVf, err);
+    }
+
+    FREETMPS;
+    LEAVE;
+}
+
+void _call_object_method (pTHX_ SV* object, const char* methname, unsigned argscount, SV** mortal_args) {
+    dSP;
+
+    ENTER;
+    SAVETMPS;
+
+    PUSHMARK(SP);
+
+    EXTEND(SP, 1 + argscount);
+
+    mPUSHs( newSVsv(object) );
+
+    unsigned i=0;
+    for (; i<argscount; i++) PUSHs( newSVsv(mortal_args[i]) );
+
+    PUTBACK;
+
+    call_method( methname, G_DISCARD | G_VOID );
+
+    FREETMPS;
+    LEAVE;
+}
+
+void _on_ws_close (pTHX_ my_perl_context_t* my_perl_context, uint16_t code, size_t reasonlen, const char* reason) {
+    SV* done_d = my_perl_context->done_d;
+
+    SV* args[] = {
+        sv_2mortal( newSVuv(code) ),
+        sv_2mortal( newSVpvn(reason, reasonlen) ),
+    };
+
+    _call_object_method( aTHX_ done_d, "resolve", 2, args );
+}
+
+void _on_ws_error (pTHX_ my_perl_context_t* my_perl_context, size_t reasonlen, const char* reason) {
+    SV* done_d = my_perl_context->done_d;
+
+    SV* args[] = {
+        sv_2mortal( newSVpvn(reason, reasonlen) ),
+    };
+
+    _call_object_method( aTHX_ done_d, "reject", 1, args );
+}
+
+SV* _new_deferred_sv(pTHX) {
+    dSP;
+
+    ENTER;
+    SAVETMPS;
+
+    PUSHMARK(SP);
+
+    int count = call_pv("Promise::XS::deferred", G_SCALAR|G_NOARGS);
+
+    if (count != 1) croak("deferred() returned %d things?!?", count);
+
+    SPAGAIN;
+
+    SV* deferred_sv = POPs;
+    SvREFCNT_inc(deferred_sv);
+
+    FREETMPS;
+    LEAVE;
+
+    assert(SvREFCNT(deferred_sv) == 1);
+
+    return deferred_sv;
+}
+
+courier_t* _new_courier(pTHX_ struct lws *wsi, struct lws_context *context) {
+    courier_t* courier;
+    Newx(courier, 1, courier_t);
+
+    courier->wsi = wsi;
+    courier->lws_context = context;
+
+    courier->on_text_count = 0;
+    courier->on_binary_count = 0;
+
+    courier->done_d = _new_deferred_sv(aTHX);
+
+    return courier;
+/*
+    return sv_2mortal(
+        _ptr_to_svrv(aTHX_ courier, gv_stashpv(COURIER_CLASS, FALSE))
+    );
+*/
+}
+
+void _on_ws_message(pTHX_ my_perl_context_t* my_perl_context, SV* msgsv) {
+    courier_t* courier = my_perl_context->courier;
+
+    sv_2mortal(msgsv);
+
+    unsigned cbcount;
+    SV** cbs;
+
+    switch (my_perl_context->message_type) {
+        case NET_LWS_MESSAGE_TYPE_TEXT:
+            cbcount = courier->on_text_count;
+            cbs = courier->on_text;
+            break;
+
+        case NET_LWS_MESSAGE_TYPE_BINARY:
+            cbcount = courier->on_binary_count;
+            cbs = courier->on_binary;
+            break;
+
+        default:
+            assert(0);
+    }
+
+    SV** args = { NULL };
+
+    for (unsigned c=0; c<cbcount; c++) {
+        args[0] = sv_mortalcopy(msgsv);
+        _call_sv_trap(aTHX_ cbs[c], args, 1);
+    }
+}
 
 static int
 net_lws_callback(
@@ -65,44 +257,101 @@ net_lws_callback(
     void *in,
     size_t len
 ) {
-fprintf(stderr, "net_lws_callback\n");
+fprintf(stderr, "net_lws_callback (%d)\n", reason);
     my_perl_context_t* my_perl_context = user;
 fprintf(stderr, "perl_context: %p\n", my_perl_context);
 
-    pTHX = my_perl_context->aTHX;
+    // Not all callbacks pass user??
+    pTHX = my_perl_context ? my_perl_context->aTHX : NULL;
 
     switch (reason) {
 
     case LWS_CALLBACK_PROTOCOL_INIT:
+fprintf(stderr, "protocol init\n");
         // ?
         break;
 
     case LWS_CALLBACK_PROTOCOL_DESTROY:
+fprintf(stderr, "protocol destroy\n");
         // ?
         break;
 
-    case LWS_CALLBACK_CLIENT_ESTABLISHED:
-        // resolve promise
+    case LWS_CALLBACK_CLIENT_ESTABLISHED: {
+fprintf(stderr, "established\n");
+        courier_t* courier = _new_courier(aTHX, wsi, my_perl_context->lws_context);
+
+        my_perl_context->courier = courier;
+
+        SV* courier_sv = sv_2mortal(
+            _ptr_to_svrv(aTHX_ courier, gv_stashpv(COURIER_CLASS, FALSE))
+        );
+
+        SV* args[] = { courier_sv };
+
+        _call_object_method( aTHX_ my_perl_context->connect_d, "resolve", 1, args );
+        } break;
+
+    case LWS_CALLBACK_WS_PEER_INITIATED_CLOSE:
+fprintf(stderr, "peer started close\n");
+        _on_ws_close(aTHX_
+            my_perl_context,
+            ntohs( *(uint16_t *) in ),
+            len - sizeof(uint16_t),
+            sizeof(uint16_t) + in
+        );
+        break;
+
+    case LWS_CALLBACK_CLIENT_CONNECTION_ERROR:
+fprintf(stderr, "conn err\n");
+        _on_ws_error(aTHX_ my_perl_context, len, in);
         break;
 
     case LWS_CALLBACK_CLIENT_RECEIVE: {
-        SV* msg_sv;
+fprintf(stderr, "recv\n");
 
         if (lws_is_first_fragment(wsi)) {
-            msg_sv = newSVpvn_flags(in, len, lws_frame_is_binary(wsi) ? 0 : SVf_UTF8);
+
+            // In this (generally prevalent) case we can create our SV
+            // directly from the incoming frame.
+            if (lws_is_final_fragment(wsi)) {
+                _on_ws_message(aTHX_ my_perl_context, newSVpvn_flags(in, len, lws_frame_is_binary(wsi) ? 0 : SVf_UTF8));
+                break;
+            }
+
+            my_perl_context->message_type = lws_frame_is_binary(wsi) ? NET_LWS_MESSAGE_TYPE_BINARY : NET_LWS_MESSAGE_TYPE_TEXT;
+
+            my_perl_context->content_length = len;
         }
         else {
-            //msg_sv = EXISTING_SV;   // TODO
-            sv_catpvn(msg_sv, in, len);
+            my_perl_context->content_length += len;
+        }
+
+        Renew(my_perl_context->message_content, my_perl_context->content_length, char);
+        Copy(
+            in,
+            my_perl_context->message_content + my_perl_context->content_length - len,
+            len,
+            char
+        );
+
+        if (lws_is_final_fragment(wsi)) {
+            SV* msgsv = newSVpvn_flags(
+                my_perl_context->message_content,
+                my_perl_context->content_length,
+                my_perl_context->message_type == NET_LWS_MESSAGE_TYPE_TEXT ? SVf_UTF8 : 0
+            );
+
+            _on_ws_message(aTHX_ my_perl_context, msgsv );
         }
 
         } break;
 
     default:
+fprintf(stderr, "other callback\n");
         break;
     }
 
-    return 0;
+    return lws_callback_http_dummy(wsi, reason, user, in, len);
 }
 
 #define LWS_PLUGIN_PROTOCOL_NET_LWS \
@@ -113,14 +362,6 @@ fprintf(stderr, "perl_context: %p\n", my_perl_context);
                 1024, \
                 0, NULL, 0 \
         }
-
-SV* _ptr_to_svrv(pTHX_ void* ptr, HV* stash) {
-    SV* referent = newSVuv( PTR2UV(ptr) );
-    SV* retval = newRV_noinc(referent);
-    sv_bless(retval, stash);
-
-    return retval;
-}
 
 static int
 init_pt_custom (struct lws_context *cx, void *_loop, int tsi) {
@@ -133,34 +374,22 @@ init_pt_custom (struct lws_context *cx, void *_loop, int tsi) {
     return 0;
 }
 
-static void _call_method(pTHX_ SV* loop_obj, const char* method_name, SV** args, unsigned argslen) {
-    PUSHMARK(SP);
-    EXTEND(SP, 1 + argslen);
-
-    PUSHs(loop_obj);    // not mortalized, per perlcall
-
-    for (unsigned i=0; i<argslen; i++) {
-        mPUSHs(args[i]);
-    }
-
-    PUTBACK;
-
-    call_method(method_name, G_DISCARD);
-}
-
 static int
 custom_io_accept (struct lws *wsi) {
 fprintf(stderr, "custom_io_accept\n");
     net_lws_abstract_loop_t* myloop_p = (net_lws_abstract_loop_t*) lws_evlib_wsi_to_evlib_pt(wsi);
-    fprintf(stderr, "\tabstract loop: %p\n", myloop_p);
+
+    pTHX = myloop_p->aTHX;
+
+fprintf(stderr, "\tabstract loop: %p\n", myloop_p);
 
     int fd = lws_get_socket_fd(wsi);
 
     SV* myloop_sv = myloop_p->perlobj;
 
-    SV** args = { newSViv(fd) };
+    SV* args[] = { sv_2mortal(newSViv(fd)) };
 
-    _call_method(aTHX_ myloop_sv, "add_fd", args, 1);
+    _call_object_method(aTHX_ myloop_sv, "add_fd", 1, args);
 
     return 0;
 }
@@ -169,6 +398,8 @@ static void
 custom_io (struct lws *wsi, unsigned int flags) {
 fprintf(stderr, "custom_io\n");
     net_lws_abstract_loop_t* myloop_p = (net_lws_abstract_loop_t*) lws_evlib_wsi_to_evlib_pt(wsi);
+
+    pTHX = myloop_p->aTHX;
 
     int fd = lws_get_socket_fd(wsi);
 
@@ -190,9 +421,12 @@ fprintf(stderr, "FD %d: add %d\n", fd, edits);
 fprintf(stderr, "FD %d: remove %d\n", fd, edits);
     }
 
-    SV** args = { newSViv(fd), newSVuv(flags) }
+    SV* args[] = {
+        sv_2mortal(newSViv(fd)),
+        sv_2mortal(newSVuv(flags)),
+    };
 
-    _call_method(aTHX_ myloop_sv, method_name, args, 2);
+    _call_object_method(aTHX_ myloop_sv, method_name, 2, args );
 }
 
 static int
@@ -200,18 +434,19 @@ custom_io_close (struct lws *wsi) {
 fprintf(stderr, "custom_io_close\n");
     net_lws_abstract_loop_t* myloop_p = (net_lws_abstract_loop_t*) lws_evlib_wsi_to_evlib_pt(wsi);
 
+    pTHX = myloop_p->aTHX;
+
     int fd = lws_get_socket_fd(wsi);
 fprintf(stderr, "closing fd %d\n", fd);
 
     SV* myloop_sv = myloop_p->perlobj;
 
-    SV** args = { newSViv(fd) };
+    SV* args[] = { sv_2mortal(newSViv(fd)) };
 
-    _call_method(aTHX_ myloop_sv, "remove_fd", args, 1);
+    _call_object_method(aTHX_ myloop_sv, "remove_fd", 1, args);
 
     return 0;
 }
-
 
 /* ---------------------------------------------------------------------- */
 
@@ -230,13 +465,30 @@ MODULE = Net::Libwebsockets     PACKAGE = Net::Libwebsockets::WebSocket::Client
 
 PROTOTYPES: DISABLE
 
-SV*
-_new (const char* class, SV* hostname, int port, SV* path, int tls_opts, SV* loop_obj, SV* deferred)
+void
+lws_service_fd( UV lws_context_uv, int fd, int events )
     CODE:
+        fprintf(stderr, "lws_service_fd - ctx: %" UVf ", fd: %d, events: %d\n", lws_context_uv, fd, events);
+        struct lws_context *context = (void *)lws_context_uv;
+        fprintf(stderr, "lws_service_fd - context: %" UVf "\n", lws_context_uv);
+        struct lws_pollfd pollfd = {
+            .fd = fd,
+            .events = events,
+            .revents = events,
+        };
+
+        //fprintf(stderr, "ctx %p - service fd %d\n", context, fd);
+        lws_service_fd(context, &pollfd);
+
+SV*
+_new (const char* class, SV* hostname, int port, SV* path, int tls_opts, SV* loop_obj, SV* connected_d, SV* done_d)
+    CODE:
+        lws_set_log_level( LLL_USER | LLL_ERR | LLL_WARN | LLL_NOTICE | LLL_DEBUG, NULL );
+
         struct lws_context_creation_info info;
         struct lws_client_connect_info client;
 
-        memset(&info, 0, sizeof info);
+        Zero(&info, 1, struct lws_context_creation_info);
 
         info.options = (
             LWS_SERVER_OPTION_DO_SSL_GLOBAL_INIT
@@ -256,10 +508,14 @@ _new (const char* class, SV* hostname, int port, SV* path, int tls_opts, SV* loo
         };
 
         my_perl_context_t* my_perl_context;
-        Newx(my_perl_context, 1, my_perl_context_t); // TODO clean up
+        Newxz(my_perl_context, 1, my_perl_context_t); // TODO clean up
         my_perl_context->aTHX = aTHX;
-        my_perl_context->deferred = deferred;
-        SvREFCNT_inc(deferred);
+
+        my_perl_context->connect_d = connected_d;
+        SvREFCNT_inc(connected_d);
+
+        my_perl_context->done_d = done_d;
+        SvREFCNT_inc(done_d);
 
         const lws_plugin_evlib_t evlib_custom = {
             .hdr = {
@@ -290,7 +546,7 @@ _new (const char* class, SV* hostname, int port, SV* path, int tls_opts, SV* loo
             {
                 .name = "net-libwebsockets",
                 .callback = net_lws_callback,
-                .per_session_data_size = 0,
+                .per_session_data_size = sizeof(void*),
                 .rx_buffer_size = 0,
             },
             { NULL, NULL, 0, 0 }
@@ -303,6 +559,12 @@ _new (const char* class, SV* hostname, int port, SV* path, int tls_opts, SV* loo
             croak("lws init failed");
         }
 
+        fprintf(stderr, "lws context: %" UVf "\n", (UV) context);
+        my_perl_context->lws_context = context;
+
+        SV* set_ctx_args[] = { sv_2mortal( newSVuv((UV) context) ) };
+        _call_object_method(aTHX_ loop_obj, "set_lws_context", 1, set_ctx_args);
+
         memset(&client, 0, sizeof client);
 
         const char* hostname_str = SvPVbyte_nolen(hostname);
@@ -314,7 +576,8 @@ _new (const char* class, SV* hostname, int port, SV* path, int tls_opts, SV* loo
         client.host = hostname_str;
         client.origin = hostname_str;
         client.ssl_connection = tls_opts;
-        client.local_protocol_name = NET_LWS_LOCAL_PROTOCOL_NAME;
+        //client.local_protocol_name = NET_LWS_LOCAL_PROTOCOL_NAME;
+        client.local_protocol_name = protocols[0].name;
 
         // The callback’s `user`:
         client.userdata = my_perl_context;
@@ -343,3 +606,36 @@ _new (const char* class, SV* hostname, int port, SV* path, int tls_opts, SV* loo
 MODULE = Net::Libwebsockets     PACKAGE = Net::Libwebsockets::WebSocket::Courier
 
 PROTOTYPES: DISABLE
+
+void
+on_text (SV* self_sv, SV* cbref)
+    CODE:
+        courier_t* courier = svrv_to_ptr(aTHX_ self_sv);
+
+        SvREFCNT_inc(cbref);
+
+        courier->on_text_count++;
+        Renew(courier->on_text, courier->on_text_count, SV*);
+        courier->on_text[courier->on_text_count - 1] = cbref;
+
+void
+send_text (SV* self_sv, SV* payload_sv)
+    CODE:
+        courier_t* courier = svrv_to_ptr(aTHX_ self_sv);
+
+        STRLEN len;
+        U8* buf = (U8*) SvPVutf8(payload_sv, len);
+
+        // TODO: Put this in a writeable callback
+        lws_write( courier->wsi, buf, len, LWS_WRITE_TEXT );
+
+void
+send_binary (SV* self_sv, SV* payload_sv)
+    CODE:
+        courier_t* courier = svrv_to_ptr(aTHX_ self_sv);
+
+        STRLEN len;
+        U8* buf = (U8*) SvPVbyte(payload_sv, len);
+
+        // TODO: Put this in a writeable callback
+        lws_write( courier->wsi, buf, len, LWS_WRITE_BINARY );
