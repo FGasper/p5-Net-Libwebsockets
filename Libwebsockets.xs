@@ -16,6 +16,8 @@
 
 #define NET_LWS_LOCAL_PROTOCOL_NAME "lws-net-libwebsockets"
 
+#define DEBUG 1
+
 /*
 #define FRAME_FLAG_TEXT         1
 #define FRAME_FLAG_CONTINUATION 2
@@ -124,13 +126,10 @@ static void _call_sv_trap(pTHX_ SV* cbref, SV** mortal_args, unsigned argslen) {
     }
 
     PUTBACK;
-fprintf(stderr,"before call_sv\n");
 
     call_sv(cbref, G_VOID|G_DISCARD|G_EVAL);
-fprintf(stderr,"after call_sv\n");
 
     SV* err = ERRSV;
-fprintf(stderr,"after call_sv 2\n");
 
     if (err && SvTRUE(err)) {
         warn("Callback error: %" SVf, err);
@@ -186,7 +185,6 @@ SV* _call_object_method_scalar (pTHX_ SV* object, const char* methname, unsigned
 
     if (count > 0) {
         ret = POPs;
-sv_dump(ret);
         SvREFCNT_inc(ret);
     }
     else {
@@ -277,7 +275,6 @@ courier_t* _new_courier(pTHX_ struct lws *wsi, struct lws_context *context) {
 }
 
 void _on_ws_message(pTHX_ my_perl_context_t* my_perl_context, SV* msgsv) {
-sv_dump(msgsv);
     courier_t* courier = my_perl_context->courier;
 
     sv_2mortal(msgsv);
@@ -305,10 +302,7 @@ sv_dump(msgsv);
 
     SV* args[] = { NULL };
 
-fprintf(stderr, "cbcount: %d\n", cbcount);
     for (unsigned c=0; c<cbcount; c++) {
-sv_dump(cbs[c]);
-sv_dump(msgsv);
         args[0] = (c == cbcount-1) ? msgsv : sv_mortalcopy(msgsv);
         _call_sv_trap(aTHX_ cbs[c], args, 1);
     }
@@ -322,9 +316,7 @@ net_lws_callback(
     void *in,
     size_t len
 ) {
-fprintf(stderr, "net_lws_callback (%d)\n", reason);
     my_perl_context_t* my_perl_context = user;
-fprintf(stderr, "perl_context: %p\n", my_perl_context);
 
     // Not all callbacks pass user??
     pTHX = my_perl_context ? my_perl_context->aTHX : NULL;
@@ -342,7 +334,6 @@ fprintf(stderr, "protocol destroy\n");
         break;
 
     case LWS_CALLBACK_CLIENT_ESTABLISHED: {
-fprintf(stderr, "established\n");
         courier_t* courier = _new_courier(aTHX, wsi, my_perl_context->lws_context);
 
         my_perl_context->courier = courier;
@@ -367,7 +358,6 @@ fprintf(stderr, "peer started close\n");
         break;
 
     case LWS_CALLBACK_CLIENT_WRITEABLE: {
-fprintf(stderr, "writeable\n");
 
         courier_t* courier = my_perl_context->courier;
 
@@ -387,21 +377,16 @@ fprintf(stderr, "writeable\n");
         } break;
 
     case LWS_CALLBACK_CLIENT_CONNECTION_ERROR:
-fprintf(stderr, "conn err (len=%d)\n", len);
-fprintf(stderr, "conn err (len=%d; in=%p)\n", len, in);
-fprintf(stderr, "conn err (%.*s)\n", len, in);
         _on_ws_error(aTHX_ my_perl_context, len, in);
         break;
 
     case LWS_CALLBACK_CLIENT_RECEIVE: {
-fprintf(stderr, "recv\n");
 
         if (lws_is_first_fragment(wsi)) {
 
             // In this (generally prevalent) case we can create our SV
             // directly from the incoming frame.
             if (lws_is_final_fragment(wsi)) {
-fprintf(stderr, "got non-fragmented message (%d bytes)! [%.*s]\n", len, len, (char*) in);
                 _on_ws_message(aTHX_ my_perl_context, newSVpvn_flags(in, len, lws_frame_is_binary(wsi) ? 0 : SVf_UTF8));
                 break;
             }
@@ -483,12 +468,9 @@ init_pt_custom (struct lws_context *cx, void *_loop, int tsi) {
 
 static int
 custom_io_accept (struct lws *wsi) {
-fprintf(stderr, "custom_io_accept\n");
     net_lws_abstract_loop_t* myloop_p = (net_lws_abstract_loop_t*) lws_evlib_wsi_to_evlib_pt(wsi);
 
     pTHX = myloop_p->aTHX;
-
-fprintf(stderr, "\tabstract loop: %p\n", myloop_p);
 
     int fd = lws_get_socket_fd(wsi);
 
@@ -503,7 +485,6 @@ fprintf(stderr, "\tabstract loop: %p\n", myloop_p);
 
 static void
 custom_io (struct lws *wsi, unsigned int flags) {
-fprintf(stderr, "custom_io; flags = %ud\n", flags);
     net_lws_abstract_loop_t* myloop_p = (net_lws_abstract_loop_t*) lws_evlib_wsi_to_evlib_pt(wsi);
 
     pTHX = myloop_p->aTHX;
@@ -516,11 +497,9 @@ fprintf(stderr, "custom_io; flags = %ud\n", flags);
 
     if (flags & LWS_EV_START) {
         method_name = "add_to_fd";
-fprintf(stderr, "///////////// FD %d: add %d\n", fd, flags);
     }
     else {
         method_name = "remove_from_fd";
-fprintf(stderr, "///////////// FD %d: remove %d\n", fd, flags);
     }
 
     SV* args[] = {
@@ -602,21 +581,16 @@ PROTOTYPES: DISABLE
 void
 lws_service_fd_read( SV* lws_context_sv, int fd )
     CODE:
-        fprintf(stderr, "lws_service_fd read\n");
         intptr_t lws_context_int = (intptr_t) SvUV(lws_context_sv);
 
-        fprintf(stderr, "lws_service_fd read - ctx: %" UVf ", fd: %d\n", (UV) lws_context_int, fd);
         struct lws_context *context = (void *) lws_context_int;
-        fprintf(stderr, "lws_service_fd - context: %" UVf "\n", (UV) lws_context_int);
         struct lws_pollfd pollfd = {
             .fd = fd,
             .events = POLLIN,
             .revents = POLLIN,
         };
 
-        //fprintf(stderr, "ctx %p - service fd %d\n", context, fd);
         lws_service_fd(context, &pollfd);
-	fprintf(stderr, "after lws_service_fd read\n");
 
 void
 lws_service_fd_write( SV* lws_context_sv, int fd )
@@ -630,9 +604,7 @@ lws_service_fd_write( SV* lws_context_sv, int fd )
             .revents = POLLOUT,
         };
 
-    //    fprintf(stderr, ">>>> lws_service_fd (ctx: %p) - service fd %d\n", context, fd);
         lws_service_fd(context, &pollfd);
-	//fprintf(stderr, "<<<< after lws_service_fd read\n");
 
 SV*
 _new (SV* hostname, int port, SV* path, int tls_opts, SV* loop_obj, SV* connected_d)
@@ -801,7 +773,7 @@ close (SV* self_sv, U16 code=LWS_CLOSE_STATUS_NOSTATUS, SV* reason_sv=NULL)
             U8* reason = (U8*) SvPVutf8(reason_sv, courier->close_reason_length);
 
             if (courier->close_reason_length > MAX_CLOSE_REASON_LENGTH) {
-                warn("Truncating %d-byte close reason (%.*s) to %d bytes …", courier->close_reason_length, courier->close_reason_length, reason, MAX_CLOSE_REASON_LENGTH);
+                warn("Truncating %zu-byte close reason (%.*s) to %zu bytes …", courier->close_reason_length, (int) courier->close_reason_length, reason, MAX_CLOSE_REASON_LENGTH);
                 courier->close_reason_length = MAX_CLOSE_REASON_LENGTH;
             }
 
@@ -818,3 +790,25 @@ void
 DESTROY (SV* self_sv)
     CODE:
         fprintf(stderr, "===== DESTROY courier\n");
+
+        courier_t* courier = svrv_to_ptr(aTHX_ self_sv);
+
+        if (courier->on_text) {
+            for (unsigned i=0; i<courier->on_text_count; i++) {
+                SvREFCNT_dec(courier->on_text[i]);
+            }
+
+            Safefree(courier->on_text);
+        }
+
+        if (courier->on_binary) {
+            for (unsigned i=0; i<courier->on_binary_count; i++) {
+                SvREFCNT_dec(courier->on_binary[i]);
+            }
+
+            Safefree(courier->on_binary);
+        }
+
+        SvREFCNT_dec(courier->done_d);
+
+        Safefree(courier);

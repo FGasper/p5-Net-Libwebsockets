@@ -19,9 +19,6 @@ my $cv = AE::cv();
 
 $_->blocking(0) for (\*STDIN, \*STDOUT);
 
-print STDERR "read event: " . Net::Libwebsockets::LWS_EV_READ . $/;
-print STDERR "write event: " . Net::Libwebsockets::LWS_EV_WRITE . $/;
-
 Net::Libwebsockets::WebSocket::Client::connect(
     url => $url,
     event => 'AnyEvent',
@@ -35,7 +32,6 @@ print STDERR "============ connected!!\n";
             fh => \*STDOUT,
             # omitting on_error for brevity
         );
-print STDERR "============ connected!! - 2\n";
 
         $ws->on_text(
             sub ($msg) {
@@ -49,7 +45,6 @@ print STDERR "============ connected!! - 2\n";
                 $out->push_write($msg);
             },
         );
-print STDERR "============ connected!! - 3\n";
 
         # 2. Anything we receive from STDIN should go to WS:
 
@@ -85,10 +80,7 @@ print STDERR "============ connected!! - 3\n";
     },
 )->then(
     $cv,
-    sub {
-warn "failed: @_";
-        $cv->croak(@_);
-    }
+    sub { $cv->croak(@_) }
 );
 
 $cv->recv();
