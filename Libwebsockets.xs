@@ -7,6 +7,8 @@
 
 #include <libwebsockets.h>
 
+#include <poll.h>
+
 #include <arpa/inet.h>
 
 #define WEBSOCKET_CLASS "Net::Libwebsockets::WebSocket::Client"
@@ -635,7 +637,7 @@ lws_service_fd_write( SV* lws_context_sv, int fd )
 SV*
 _new (SV* hostname, int port, SV* path, int tls_opts, SV* loop_obj, SV* connected_d)
     CODE:
-        lws_set_log_level( LLL_USER | LLL_ERR | LLL_WARN | LLL_NOTICE | LLL_DEBUG, NULL );
+        lws_set_log_level( LLL_USER | LLL_ERR | LLL_WARN | LLL_NOTICE | LLL_DEBUG | LLL_PARSER | LLL_HEADER | LLL_INFO, NULL );
 
         struct lws_context_creation_info info;
         struct lws_client_connect_info client;

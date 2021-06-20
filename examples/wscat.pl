@@ -5,8 +5,6 @@ use warnings;
 
 use experimental 'signatures';
 
-use AnyEvent::Loop;
-
 use AnyEvent;
 use AnyEvent::Handle;
 
