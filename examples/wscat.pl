@@ -39,6 +39,13 @@ print STDERR "============ connected!!\n";
         );
 print STDERR "============ connected!! - 2\n";
 
+        $ws->on_text(
+            sub ($msg) {
+                utf8::encode($msg);
+                $out->push_write($msg);
+            },
+        );
+
         $ws->on_binary(
             sub ($msg) {
                 $out->push_write($msg);

@@ -209,13 +209,21 @@ void _on_ws_close (pTHX_ my_perl_context_t* my_perl_context, uint16_t code, size
 }
 
 void _on_ws_error (pTHX_ my_perl_context_t* my_perl_context, size_t reasonlen, const char* reason) {
-    SV* done_d = my_perl_context->courier->done_d;
+
+    SV* deferred_sv;
+
+    if (my_perl_context->courier) {
+        deferred_sv = my_perl_context->courier->done_d;
+    }
+    else {
+        deferred_sv = my_perl_context->connect_d;
+    }
 
     SV* args[] = {
         sv_2mortal( newSVpvn(reason, reasonlen) ),
     };
 
-    _call_object_method( aTHX_ done_d, "reject", 1, args );
+    _call_object_method( aTHX_ deferred_sv, "reject", 1, args );
 }
 
 SV* _new_deferred_sv(pTHX) {
@@ -377,7 +385,9 @@ fprintf(stderr, "writeable\n");
         } break;
 
     case LWS_CALLBACK_CLIENT_CONNECTION_ERROR:
-fprintf(stderr, "conn err\n");
+fprintf(stderr, "conn err (len=%d)\n", len);
+fprintf(stderr, "conn err (len=%d; in=%p)\n", len, in);
+fprintf(stderr, "conn err (%.*s)\n", len, in);
         _on_ws_error(aTHX_ my_perl_context, len, in);
         break;
 
@@ -644,6 +654,7 @@ _new (SV* hostname, int port, SV* path, int tls_opts, SV* loop_obj, SV* connecte
         my_perl_context->aTHX = aTHX;
 
         my_perl_context->connect_d = connected_d;
+        my_perl_context->courier = NULL;
         SvREFCNT_inc(connected_d);
 
 
