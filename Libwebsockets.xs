@@ -168,7 +168,7 @@ SV* _call_object_method_scalar (pTHX_ SV* object, const char* methname, unsigned
 
     PUTBACK;
 
-    int count = call_method( methname, G_DISCARD | G_SCALAR );
+    int count = call_method( methname, G_SCALAR );
 
     SV* ret;
 
