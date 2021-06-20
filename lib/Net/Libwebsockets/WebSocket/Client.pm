@@ -44,11 +44,10 @@ sub connect {
     $tls_flags |= $tls_opt if $tls_opt;
 
     my $connected_d = Promise::XS::deferred();
-    my $done_d      = Promise::XS::deferred();
 
     my $loop_obj = _get_loop_obj($event);
 
-    my $wsc = __PACKAGE__->_new($hostname, $port, $path, $tls_flags, $loop_obj, $connected_d, $done_d);
+    my $wsc = __PACKAGE__->_new($hostname, $port, $path, $tls_flags, $loop_obj, $connected_d);
 
     return $connected_d->promise()->finally( sub { undef $wsc } );
 }

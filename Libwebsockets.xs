@@ -64,7 +64,6 @@ typedef struct {
 typedef struct {
     tTHX aTHX;
     SV* connect_d;
-    SV* done_d;
 
     struct lws_context* lws_context;
 
@@ -152,8 +151,43 @@ void _call_object_method (pTHX_ SV* object, const char* methname, unsigned argsc
     LEAVE;
 }
 
+SV* _call_object_method_scalar (pTHX_ SV* object, const char* methname, unsigned argscount, SV** mortal_args) {
+    dSP;
+
+    ENTER;
+    SAVETMPS;
+
+    PUSHMARK(SP);
+
+    EXTEND(SP, 1 + argscount);
+
+    mPUSHs( newSVsv(object) );
+
+    unsigned i=0;
+    for (; i<argscount; i++) PUSHs( newSVsv(mortal_args[i]) );
+
+    PUTBACK;
+
+    int count = call_method( methname, G_DISCARD | G_SCALAR );
+
+    SV* ret;
+
+    if (count > 0) {
+        ret = POPs;
+        SvREFCNT_inc(ret);
+    }
+    else {
+        ret = &PL_sv_undef;
+    }
+
+    FREETMPS;
+    LEAVE;
+
+    return ret;
+}
+
 void _on_ws_close (pTHX_ my_perl_context_t* my_perl_context, uint16_t code, size_t reasonlen, const char* reason) {
-    SV* done_d = my_perl_context->done_d;
+    SV* done_d = my_perl_context->courier->done_d;
 
     SV* args[] = {
         sv_2mortal( newSVuv(code) ),
@@ -164,7 +198,7 @@ void _on_ws_close (pTHX_ my_perl_context_t* my_perl_context, uint16_t code, size
 }
 
 void _on_ws_error (pTHX_ my_perl_context_t* my_perl_context, size_t reasonlen, const char* reason) {
-    SV* done_d = my_perl_context->done_d;
+    SV* done_d = my_perl_context->courier->done_d;
 
     SV* args[] = {
         sv_2mortal( newSVpvn(reason, reasonlen) ),
@@ -181,7 +215,7 @@ SV* _new_deferred_sv(pTHX) {
 
     PUSHMARK(SP);
 
-    int count = call_pv("Promise::XS::deferred", G_SCALAR|G_NOARGS);
+    int count = call_pv("Promise::XS::deferred", G_SCALAR);
 
     if (count != 1) croak("deferred() returned %d things?!?", count);
 
@@ -500,7 +534,7 @@ lws_service_fd_write( SV* lws_context_sv, int fd )
         lws_service_fd(context, &pollfd);
 
 SV*
-_new (const char* class, SV* hostname, int port, SV* path, int tls_opts, SV* loop_obj, SV* connected_d, SV* done_d)
+_new (const char* class, SV* hostname, int port, SV* path, int tls_opts, SV* loop_obj, SV* connected_d)
     CODE:
         lws_set_log_level( LLL_USER | LLL_ERR | LLL_WARN | LLL_NOTICE | LLL_DEBUG, NULL );
 
@@ -532,9 +566,6 @@ _new (const char* class, SV* hostname, int port, SV* path, int tls_opts, SV* loo
 
         my_perl_context->connect_d = connected_d;
         SvREFCNT_inc(connected_d);
-
-        my_perl_context->done_d = done_d;
-        SvREFCNT_inc(done_d);
 
         const lws_plugin_evlib_t evlib_custom = {
             .hdr = {
@@ -636,6 +667,27 @@ on_text (SV* self_sv, SV* cbref)
         courier->on_text_count++;
         Renew(courier->on_text, courier->on_text_count, SV*);
         courier->on_text[courier->on_text_count - 1] = cbref;
+
+void
+on_binary (SV* self_sv, SV* cbref)
+    CODE:
+        courier_t* courier = svrv_to_ptr(aTHX_ self_sv);
+
+        SvREFCNT_inc(cbref);
+
+        courier->on_binary_count++;
+        Renew(courier->on_binary, courier->on_binary_count, SV*);
+        courier->on_binary[courier->on_binary_count - 1] = cbref;
+
+SV*
+done_p (SV* self_sv)
+    CODE:
+        courier_t* courier = svrv_to_ptr(aTHX_ self_sv);
+
+        RETVAL = _call_object_method_scalar(aTHX_ courier->done_d, "promise", 0, NULL);
+
+    OUTPUT:
+        RETVAL
 
 void
 send_text (SV* self_sv, SV* payload_sv)

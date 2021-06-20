@@ -35,12 +35,14 @@ print STDERR "============ connected!!\n";
             fh => \*STDOUT,
             # omitting on_error for brevity
         );
+print STDERR "============ connected!! - 2\n";
 
         $ws->on_binary(
             sub ($msg) {
                 $out->push_write($msg);
             },
         );
+print STDERR "============ connected!! - 3\n";
 
         # 2. Anything we receive from STDIN should go to WS:
 
@@ -76,7 +78,10 @@ print STDERR "============ connected!!\n";
     },
 )->then(
     $cv,
-    sub { $cv->croak() }
+    sub {
+warn "failed: @_";
+        $cv->croak(@_);
+    }
 );
 
 $cv->recv();
