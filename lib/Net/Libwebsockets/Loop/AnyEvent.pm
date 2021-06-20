@@ -16,42 +16,41 @@ sub add_fd {
 }
 
 sub add_to_fd {
-    my ($self, $fd, $edits) = @_;
-#print "add to FD: $fd ($edits)\n";
+    my ($self, $fd, $flags) = @_;
+#print "add to FD: $fd ($flags)\n";
 
     my $ctx_sr = \$self->{'lws_context'};
 
-    my $runner_cr = $self->{'context_package'}->can('lws_service_fd') or do {
-        die "$self->{'context_package'} lacks lws_service_fd()!";
-    };
+    my $on_readable_cr = $self->{'context_package'}->can('lws_service_fd_read');
+    my $on_writable_cr = $self->{'context_package'}->can('lws_service_fd_write');
 
-    if ($edits & Net::Libwebsockets::LWS_EV_READ) {
+    if ($flags & Net::Libwebsockets::LWS_EV_READ) {
         $self->{$fd}[0] = AnyEvent->io(
             fh => $fd,
             poll => 'r',
             cb => sub {
 print STDERR "=== FD $fd is readable\n";
-                $runner_cr->($$ctx_sr, $fd, Net::Libwebsockets::LWS_EV_READ);
+                $on_readable_cr->($$ctx_sr, $fd);
             },
         );
     }
 
-    if ($edits & Net::Libwebsockets::LWS_EV_WRITE) {
+    if ($flags & Net::Libwebsockets::LWS_EV_WRITE) {
         $self->{$fd}[1] = AnyEvent->io(
             fh => $fd,
             poll => 'w',
             cb => sub {
-print STDERR "=== FD $fd is writable\n";
-warn if !eval {
-use Data::Dumper;
-$Data::Dumper::Deparse = 1;
-print STDERR "===== in eval\n";
-print STDERR Dumper $runner_cr;
-                $runner_cr->($$ctx_sr, $fd, Net::Libwebsockets::LWS_EV_WRITE);
-print STDERR "===== end eval\n";
-1;
-};
-print STDERR "=== after FD $fd is writable\n";
+#print STDERR "=== FD $fd is writable\n";
+#warn if !eval {
+#use Data::Dumper;
+#$Data::Dumper::Deparse = 1;
+#print STDERR "===== in eval\n";
+#print STDERR Dumper $runner_cr;
+                $on_writable_cr->($$ctx_sr, $fd);
+#print STDERR "===== end eval\n";
+#1;
+#};
+#print STDERR "=== after FD $fd is writable\n";
             },
         );
     }
@@ -60,16 +59,16 @@ print STDERR "=== after FD $fd is writable\n";
 }
 
 sub remove_from_fd {
-    my ($self, $fd, $edits) = @_;
-#print "remove from FD: $fd ($edits)\n";
+    my ($self, $fd, $flags) = @_;
+#print "remove from FD: $fd ($flags)\n";
 
-    if ($edits & Net::Libwebsockets::LWS_EV_READ) {
+    if ($flags & Net::Libwebsockets::LWS_EV_READ) {
         delete $self->{$fd}[0] or do {
             warn "LWS asked to drop nonexistent reader for FD $fd\n";
         };
     }
 
-    if ($edits & Net::Libwebsockets::LWS_EV_WRITE) {
+    if ($flags & Net::Libwebsockets::LWS_EV_WRITE) {
         delete $self->{$fd}[1] or do {
             warn "LWS asked to drop nonexistent writer for FD $fd\n";
         };

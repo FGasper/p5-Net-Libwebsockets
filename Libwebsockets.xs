@@ -399,7 +399,7 @@ fprintf(stderr, "\tabstract loop: %p\n", myloop_p);
 
 static void
 custom_io (struct lws *wsi, unsigned int flags) {
-fprintf(stderr, "custom_io\n");
+fprintf(stderr, "custom_io; flags = %ud\n", flags);
     net_lws_abstract_loop_t* myloop_p = (net_lws_abstract_loop_t*) lws_evlib_wsi_to_evlib_pt(wsi);
 
     pTHX = myloop_p->aTHX;
@@ -408,20 +408,15 @@ fprintf(stderr, "custom_io\n");
 
     SV* myloop_sv = myloop_p->perlobj;
 
-    int edits = 0;
-
-    if (flags & LWS_EV_WRITE) edits |= POLLOUT;
-    if (flags & LWS_EV_READ) edits |= POLLIN;
-
     char *method_name;
 
     if (flags & LWS_EV_START) {
         method_name = "add_to_fd";
-fprintf(stderr, "FD %d: add %d\n", fd, edits);
+fprintf(stderr, "///////////// FD %d: add %d\n", fd, flags);
     }
     else {
         method_name = "remove_from_fd";
-fprintf(stderr, "FD %d: remove %d\n", fd, edits);
+fprintf(stderr, "///////////// FD %d: remove %d\n", fd, flags);
     }
 
     SV* args[] = {
@@ -469,15 +464,36 @@ MODULE = Net::Libwebsockets     PACKAGE = Net::Libwebsockets::WebSocket::Client
 PROTOTYPES: DISABLE
 
 void
-lws_service_fd( intptr_t lws_context_uv, int fd, int events )
+lws_service_fd_read( SV* lws_context_sv, int fd )
     CODE:
-        fprintf(stderr, "lws_service_fd - ctx: %" UVf ", fd: %d, events: %d\n", lws_context_uv, fd, events);
-        struct lws_context *context = (void *)lws_context_uv;
-        fprintf(stderr, "lws_service_fd - context: %" UVf "\n", lws_context_uv);
+        fprintf(stderr, "lws_service_fd read\n");
+        intptr_t lws_context_int = (intptr_t) SvUV(lws_context_sv);
+
+        fprintf(stderr, "lws_service_fd read - ctx: %" UVf ", fd: %d\n", (UV) lws_context_int, fd);
+        struct lws_context *context = (void *) lws_context_int;
+        fprintf(stderr, "lws_service_fd - context: %" UVf "\n", (UV) lws_context_int);
         struct lws_pollfd pollfd = {
             .fd = fd,
-            .events = events,
-            .revents = events,
+            .events = POLLIN,
+            .revents = POLLIN,
+        };
+
+        //fprintf(stderr, "ctx %p - service fd %d\n", context, fd);
+        lws_service_fd(context, &pollfd);
+
+void
+lws_service_fd_write( SV* lws_context_sv, int fd )
+    CODE:
+        fprintf(stderr, "lws_service_fd write\n");
+        intptr_t lws_context_int = (intptr_t) SvUV(lws_context_sv);
+
+        fprintf(stderr, "lws_service_fd write - ctx: %" UVf ", fd: %d\n", (UV) lws_context_int, fd);
+        struct lws_context *context = (void *) lws_context_int;
+        fprintf(stderr, "lws_service_fd - context: %" UVf "\n", (UV) lws_context_int);
+        struct lws_pollfd pollfd = {
+            .fd = fd,
+            .events = POLLOUT,
+            .revents = POLLOUT,
         };
 
         //fprintf(stderr, "ctx %p - service fd %d\n", context, fd);
