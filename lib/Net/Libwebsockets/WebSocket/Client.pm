@@ -47,7 +47,7 @@ sub connect {
 
     my $loop_obj = _get_loop_obj($event);
 
-    my $wsc = __PACKAGE__->_new($hostname, $port, $path, $tls_flags, $loop_obj, $connected_d);
+    my $wsc = _new($hostname, $port, $path, $tls_flags, $loop_obj, $connected_d);
 
     return $connected_d->promise()->finally( sub { undef $wsc } );
 }

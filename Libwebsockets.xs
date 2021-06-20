@@ -59,7 +59,14 @@ typedef struct {
     SV** on_binary;
 
     SV* done_d;
+
+    bool            close_yn;
+    uint16_t        close_status;
+    unsigned char   close_reason[123];
+    STRLEN          close_reason_length;
 } courier_t;
+
+#define MAX_CLOSE_REASON_LENGTH (sizeof(courier->close_status))
 
 typedef struct {
     tTHX aTHX;
@@ -101,7 +108,7 @@ void* svrv_to_ptr(pTHX_ SV* svrv) {
     return (void *) (intptr_t) SvUV( SvRV(svrv) );
 }
 
-static void _call_sv_trap(pTHX_ SV* cbref, SV** args, unsigned argslen) {
+static void _call_sv_trap(pTHX_ SV* cbref, SV** mortal_args, unsigned argslen) {
     dSP;
 
     ENTER;
@@ -111,16 +118,19 @@ static void _call_sv_trap(pTHX_ SV* cbref, SV** args, unsigned argslen) {
     EXTEND(SP, argslen);
 
     for (unsigned i=0; i<argslen; i++) {
-        mPUSHs(args[i]);
+        PUSHs(mortal_args[i]);
     }
 
     PUTBACK;
+fprintf(stderr,"before call_sv\n");
 
     call_sv(cbref, G_VOID|G_DISCARD|G_EVAL);
+fprintf(stderr,"after call_sv\n");
 
     SV* err = ERRSV;
+fprintf(stderr,"after call_sv 2\n");
 
-    if (SvTRUE(err)) {
+    if (err && SvTRUE(err)) {
         warn("Callback error: %" SVf, err);
     }
 
@@ -174,6 +184,7 @@ SV* _call_object_method_scalar (pTHX_ SV* object, const char* methname, unsigned
 
     if (count > 0) {
         ret = POPs;
+sv_dump(ret);
         SvREFCNT_inc(ret);
     }
     else {
@@ -240,7 +251,10 @@ courier_t* _new_courier(pTHX_ struct lws *wsi, struct lws_context *context) {
     courier->lws_context = context;
 
     courier->on_text_count = 0;
+    courier->on_text = NULL;
     courier->on_binary_count = 0;
+    courier->on_binary = NULL;
+    courier->close_yn = false;
 
     courier->done_d = _new_deferred_sv(aTHX);
 
@@ -253,6 +267,7 @@ courier_t* _new_courier(pTHX_ struct lws *wsi, struct lws_context *context) {
 }
 
 void _on_ws_message(pTHX_ my_perl_context_t* my_perl_context, SV* msgsv) {
+sv_dump(msgsv);
     courier_t* courier = my_perl_context->courier;
 
     sv_2mortal(msgsv);
@@ -278,10 +293,13 @@ void _on_ws_message(pTHX_ my_perl_context_t* my_perl_context, SV* msgsv) {
             assert(0);
     }
 
-    SV** args = { NULL };
+    SV* args[] = { NULL };
 
+fprintf(stderr, "cbcount: %d\n", cbcount);
     for (unsigned c=0; c<cbcount; c++) {
-        args[0] = sv_mortalcopy(msgsv);
+sv_dump(cbs[c]);
+sv_dump(msgsv);
+        args[0] = (c == cbcount-1) ? msgsv : sv_mortalcopy(msgsv);
         _call_sv_trap(aTHX_ cbs[c], args, 1);
     }
 }
@@ -338,6 +356,26 @@ fprintf(stderr, "peer started close\n");
         );
         break;
 
+    case LWS_CALLBACK_CLIENT_WRITEABLE: {
+fprintf(stderr, "writeable\n");
+
+        courier_t* courier = my_perl_context->courier;
+
+        if (courier->close_yn) {
+            if (courier->close_status != LWS_CLOSE_STATUS_NOSTATUS) {
+                lws_close_reason(
+                    wsi,
+                    courier->close_status,
+                    courier->close_reason,
+                    courier->close_reason_length
+                );
+            }
+
+            return -1;
+        }
+
+        } break;
+
     case LWS_CALLBACK_CLIENT_CONNECTION_ERROR:
 fprintf(stderr, "conn err\n");
         _on_ws_error(aTHX_ my_perl_context, len, in);
@@ -351,6 +389,7 @@ fprintf(stderr, "recv\n");
             // In this (generally prevalent) case we can create our SV
             // directly from the incoming frame.
             if (lws_is_final_fragment(wsi)) {
+fprintf(stderr, "got non-fragmented message (%d bytes)! [%.*s]\n", len, len, (char*) in);
                 _on_ws_message(aTHX_ my_perl_context, newSVpvn_flags(in, len, lws_frame_is_binary(wsi) ? 0 : SVf_UTF8));
                 break;
             }
@@ -383,12 +422,31 @@ fprintf(stderr, "recv\n");
 
         } break;
 
+    case LWS_CALLBACK_CLIENT_CLOSED: {
+
+        courier_t* courier = my_perl_context->courier;
+
+        if (courier->close_yn) {
+            _call_object_method( aTHX_
+                courier->done_d,
+                "resolve",
+                0,
+                NULL
+            );
+        }
+        else {
+            warn("LWS_CALLBACK_CLIENT_CLOSED but we didn’t close … is this OK?");
+        }
+
+        } break;
+
     default:
 fprintf(stderr, "other callback\n");
         break;
     }
 
-    return lws_callback_http_dummy(wsi, reason, user, in, len);
+    //return lws_callback_http_dummy(wsi, reason, user, in, len);
+    return 0;
 }
 
 #define LWS_PLUGIN_PROTOCOL_NET_LWS \
@@ -480,6 +538,38 @@ fprintf(stderr, "closing fd %d\n", fd);
     return 0;
 }
 
+const struct lws_event_loop_ops event_loop_ops_custom = {
+    .name                   = "net-lws-custom-loop",
+
+    .init_pt                = init_pt_custom,
+    .init_vhost_listen_wsi  = custom_io_accept,
+    .sock_accept            = custom_io_accept,
+    .io                     = custom_io,
+    .wsi_logical_close      = custom_io_close,
+
+    .evlib_size_pt          = sizeof(net_lws_abstract_loop_t),
+};
+
+const lws_plugin_evlib_t evlib_custom = {
+    .hdr = {
+        "custom perl loop",
+        "net_lws_plugin",
+        LWS_BUILD_HASH,
+        LWS_PLUGIN_API_MAGIC,
+    },
+
+    .ops = &event_loop_ops_custom,
+};
+
+void _courier_sv_send( pTHX_ courier_t* courier, U8* buf, STRLEN len, enum lws_write_protocol protocol ) {
+
+    U8 msgbuf[len + LWS_PRE];
+    Copy(buf, LWS_PRE + msgbuf, len, U8);
+
+    // TODO: Put this in a writeable callback
+    lws_write( courier->wsi, msgbuf + LWS_PRE, len, protocol );
+}
+
 /* ---------------------------------------------------------------------- */
 
 MODULE = Net::Libwebsockets     PACKAGE = Net::Libwebsockets
@@ -514,27 +604,26 @@ lws_service_fd_read( SV* lws_context_sv, int fd )
 
         //fprintf(stderr, "ctx %p - service fd %d\n", context, fd);
         lws_service_fd(context, &pollfd);
+	fprintf(stderr, "after lws_service_fd read\n");
 
 void
 lws_service_fd_write( SV* lws_context_sv, int fd )
     CODE:
-        fprintf(stderr, "lws_service_fd write\n");
         intptr_t lws_context_int = (intptr_t) SvUV(lws_context_sv);
 
-        fprintf(stderr, "lws_service_fd write - ctx: %" UVf ", fd: %d\n", (UV) lws_context_int, fd);
         struct lws_context *context = (void *) lws_context_int;
-        fprintf(stderr, "lws_service_fd - context: %" UVf "\n", (UV) lws_context_int);
         struct lws_pollfd pollfd = {
             .fd = fd,
             .events = POLLOUT,
             .revents = POLLOUT,
         };
 
-        //fprintf(stderr, "ctx %p - service fd %d\n", context, fd);
+    //    fprintf(stderr, ">>>> lws_service_fd (ctx: %p) - service fd %d\n", context, fd);
         lws_service_fd(context, &pollfd);
+	//fprintf(stderr, "<<<< after lws_service_fd read\n");
 
 SV*
-_new (const char* class, SV* hostname, int port, SV* path, int tls_opts, SV* loop_obj, SV* connected_d)
+_new (SV* hostname, int port, SV* path, int tls_opts, SV* loop_obj, SV* connected_d)
     CODE:
         lws_set_log_level( LLL_USER | LLL_ERR | LLL_WARN | LLL_NOTICE | LLL_DEBUG, NULL );
 
@@ -548,17 +637,7 @@ _new (const char* class, SV* hostname, int port, SV* path, int tls_opts, SV* loo
             | LWS_SERVER_OPTION_VALIDATE_UTF8
         );
 
-        const struct lws_event_loop_ops event_loop_ops_custom = {
-            .name                   = "net-lws-custom-loop",
 
-            .init_pt                = init_pt_custom,
-            .init_vhost_listen_wsi  = custom_io_accept,
-            .sock_accept            = custom_io_accept,
-            .io                     = custom_io,
-            .wsi_logical_close      = custom_io_close,
-
-            .evlib_size_pt          = sizeof(net_lws_abstract_loop_t),
-        };
 
         my_perl_context_t* my_perl_context;
         Newxz(my_perl_context, 1, my_perl_context_t); // TODO clean up
@@ -567,16 +646,7 @@ _new (const char* class, SV* hostname, int port, SV* path, int tls_opts, SV* loo
         my_perl_context->connect_d = connected_d;
         SvREFCNT_inc(connected_d);
 
-        const lws_plugin_evlib_t evlib_custom = {
-            .hdr = {
-                "custom perl loop",
-                "net_lws_plugin",
-                LWS_BUILD_HASH,
-                LWS_PLUGIN_API_MAGIC,
-            },
 
-            .ops = &event_loop_ops_custom,
-        };
 
         info.event_lib_custom = &evlib_custom;
 
@@ -697,8 +767,7 @@ send_text (SV* self_sv, SV* payload_sv)
         STRLEN len;
         U8* buf = (U8*) SvPVutf8(payload_sv, len);
 
-        // TODO: Put this in a writeable callback
-        lws_write( courier->wsi, buf, len, LWS_WRITE_TEXT );
+        _courier_sv_send(aTHX_ courier, buf, len, LWS_WRITE_BINARY);
 
 void
 send_binary (SV* self_sv, SV* payload_sv)
@@ -708,5 +777,31 @@ send_binary (SV* self_sv, SV* payload_sv)
         STRLEN len;
         U8* buf = (U8*) SvPVbyte(payload_sv, len);
 
-        // TODO: Put this in a writeable callback
-        lws_write( courier->wsi, buf, len, LWS_WRITE_BINARY );
+        _courier_sv_send(aTHX_ courier, buf, len, LWS_WRITE_BINARY);
+
+void
+close (SV* self_sv, U16 code=LWS_CLOSE_STATUS_NOSTATUS, SV* reason_sv=NULL)
+    CODE:
+        courier_t* courier = svrv_to_ptr(aTHX_ self_sv);
+
+        if (reason_sv && SvOK(reason_sv)) {
+            U8* reason = (U8*) SvPVutf8(reason_sv, courier->close_reason_length);
+
+            if (courier->close_reason_length > MAX_CLOSE_REASON_LENGTH) {
+                warn("Truncating %d-byte close reason (%.*s) to %d bytes …", courier->close_reason_length, courier->close_reason_length, reason, MAX_CLOSE_REASON_LENGTH);
+                courier->close_reason_length = MAX_CLOSE_REASON_LENGTH;
+            }
+
+            memcpy(courier->close_reason, reason, courier->close_reason_length);
+        }
+
+        courier->close_yn = true;
+        courier->close_status = code;
+
+        // Force a writable callback, which will trigger our close.
+        lws_callback_on_writable(courier->wsi);
+
+void
+DESTROY (SV* self_sv)
+    CODE:
+        fprintf(stderr, "===== DESTROY courier\n");
