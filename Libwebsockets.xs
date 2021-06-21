@@ -219,35 +219,58 @@ SV* _call_object_method_scalar (pTHX_ SV* object, const char* methname, unsigned
     return ret;
 }
 
-void _on_ws_close (pTHX_ my_perl_context_t* my_perl_context, uint16_t code, size_t reasonlen, const char* reason) {
-    SV* done_d = my_perl_context->courier->done_d;
+void finish_deferred_sv (pTHX_ SV** deferred_svp, const char* methname, SV* payload) {
+    if (!*deferred_svp) croak("Can’t %s(); already finished!", methname);
 
+    if (payload) {
+        SV* args[] = { sv_2mortal(payload) };
+
+        _call_object_method( aTHX_ *deferred_svp, methname, 1, args );
+    }
+    else {
+        _call_object_method( aTHX_ *deferred_svp, methname, 0, NULL );
+    }
+
+    SvREFCNT_dec(*deferred_svp);
+
+    *deferred_svp = NULL;
+}
+
+void _on_ws_close (pTHX_ my_perl_context_t* my_perl_context, uint16_t code, size_t reasonlen, const char* reason) {
+
+/*
     SV* args[] = {
         sv_2mortal( newSVuv(code) ),
         sv_2mortal( newSVpvn(reason, reasonlen) ),
     };
 
-    _call_object_method( aTHX_ done_d, "resolve", 2, args );
-    SvREFCNT_dec(done_d);
+    AV* code_reason = av_make( 2, args );
+*/
+    AV* code_reason = av_make(
+        2,
+        ( (SV*[]) {
+            newSVuv(code),
+            newSVpvn(reason, reasonlen),
+        } )
+    );
+
+    SV* arg = newRV_noinc((SV*) code_reason);
+
+    finish_deferred_sv( aTHX_ &my_perl_context->courier->done_d, "resolve", arg );
 }
 
 void _on_ws_error (pTHX_ my_perl_context_t* my_perl_context, size_t reasonlen, const char* reason) {
 
-    SV* deferred_sv;
+    SV** deferred_svp;
 
     if (my_perl_context->courier) {
-        deferred_sv = my_perl_context->courier->done_d;
+        deferred_svp = &my_perl_context->courier->done_d;
     }
     else {
-        deferred_sv = my_perl_context->connect_d;
+        deferred_svp = &my_perl_context->connect_d;
     }
 
-    SV* args[] = {
-        sv_2mortal( newSVpvn(reason, reasonlen) ),
-    };
-
-    _call_object_method( aTHX_ deferred_sv, "reject", 1, args );
-    SvREFCNT_dec(deferred_sv);
+    finish_deferred_sv( aTHX_ deferred_svp, "reject", newSVpvn(reason, reasonlen) );
 }
 
 SV* _new_deferred_sv(pTHX) {
@@ -380,6 +403,10 @@ fprintf(stderr, "wsi destroy2\n");
 
         break;
 
+    case LWS_CALLBACK_EVENT_WAIT_CANCELLED:
+warn("cancelled (len=%d)\n", len);
+        break;
+
     case LWS_CALLBACK_CLIENT_ESTABLISHED: {
         courier_t* courier = _new_courier(aTHX, wsi, my_perl_context->lws_context);
 
@@ -388,10 +415,7 @@ fprintf(stderr, "wsi destroy2\n");
         SV* courier_sv = _ptr_to_svrv(aTHX_ courier, gv_stashpv(COURIER_CLASS, FALSE));
         my_perl_context->courier_sv = courier_sv;
 
-        SV* args[] = { sv_mortalcopy(courier_sv) };
-
-        _call_object_method( aTHX_ my_perl_context->connect_d, "resolve", 1, args );
-        SvREFCNT_dec(my_perl_context->connect_d);
+        finish_deferred_sv( aTHX_ &my_perl_context->connect_d, "resolve", newSVsv(courier_sv) );
 
         } break;
 
@@ -453,6 +477,7 @@ warn("writable: we started close\n");
         } break;
 
     case LWS_CALLBACK_CLIENT_CONNECTION_ERROR:
+warn("connection error: [%.*s]\n", len, in);
         _on_ws_error(aTHX_ my_perl_context, len, in);
         break;
 
@@ -500,14 +525,7 @@ warn("writable: we started close\n");
         courier_t* courier = my_perl_context->courier;
 
         if (courier->close_yn) {
-            _call_object_method( aTHX_
-                courier->done_d,
-                "resolve",
-                0,
-                NULL
-            );
-
-            SvREFCNT_dec(courier->done_d);
+            finish_deferred_sv( aTHX_ &courier->done_d, "resolve", NULL );
         }
         else {
             warn("LWS_CALLBACK_CLIENT_CLOSED but we didn’t close … is this OK?");
@@ -952,7 +970,7 @@ DESTROY (SV* self_sv)
             Safefree(courier->on_binary);
         }
 
-        SvREFCNT_dec(courier->done_d);
+        if (courier->done_d) SvREFCNT_dec(courier->done_d);
 
         lws_ring_destroy(courier->ring);
 
