@@ -13,6 +13,7 @@
 
 #define WEBSOCKET_CLASS "Net::Libwebsockets::WebSocket::Client"
 #define COURIER_CLASS "Net::Libwebsockets::WebSocket::Courier"
+#define PAUSE_CLASS "Net::Libwebsockets::WebSocket::Pause"
 
 #define NET_LWS_LOCAL_PROTOCOL_NAME "lws-net-libwebsockets"
 
@@ -31,13 +32,15 @@
 
 #define FRAME_IS_NONFINAL(f)    (f.flags & FRAME_FLAG_NONFINAL)
 #define FRAME_IS_FIRST(f)       (!FRAME_IS_NONFINAL(f))
+*/
+
+#define RING_DEPTH 1024
 
 typedef struct {
-    void *payload; //
+    U8 *pre_plus_payload;
     size_t len;
-    char flags;
+    enum lws_write_protocol flags;
 } frame_t;
-*/
 
 typedef enum {
     NET_LWS_MESSAGE_TYPE_TEXT,
@@ -63,6 +66,9 @@ typedef struct {
     SV** on_binary;
 
     SV* done_d;
+
+    struct lws_ring *ring;
+    unsigned consume_pending_count;
 
     bool            close_yn;
     uint16_t        close_status;
@@ -251,6 +257,13 @@ SV* _new_deferred_sv(pTHX) {
     return deferred_sv;
 }
 
+static void
+_destroy_frame (void *_frame) {
+    frame_t *frame_p = _frame;
+
+    Safefree(frame_p->pre_plus_payload);
+}
+
 courier_t* _new_courier(pTHX_ struct lws *wsi, struct lws_context *context) {
     courier_t* courier;
     Newx(courier, 1, courier_t);
@@ -263,6 +276,14 @@ courier_t* _new_courier(pTHX_ struct lws *wsi, struct lws_context *context) {
     courier->on_binary_count = 0;
     courier->on_binary = NULL;
     courier->close_yn = false;
+
+    courier->ring = lws_ring_create(sizeof(frame_t), RING_DEPTH, _destroy_frame);
+    courier->consume_pending_count = 0;
+
+    if (!courier->ring) {
+        Safefree(courier);
+        croak("lws_ring_create() failed!");
+    }
 
     courier->done_d = _new_deferred_sv(aTHX);
 
@@ -358,10 +379,37 @@ fprintf(stderr, "peer started close\n");
         break;
 
     case LWS_CALLBACK_CLIENT_WRITEABLE: {
-
         courier_t* courier = my_perl_context->courier;
 
-        if (courier->close_yn) {
+        // Idea taken from LWS’s lws-minimal-client-echo demo:
+        // permessage-deflate requires that we forgo consuming the
+        // item from the ring buffer until the next writeable.
+        //
+        if (courier->consume_pending_count) {
+            courier->consume_pending_count -= lws_ring_consume(courier->ring, NULL, NULL, courier->consume_pending_count);
+        }
+
+        const frame_t *frame_p = lws_ring_get_element(courier->ring, NULL);
+
+        if (frame_p) {
+            int wrote = lws_write(
+                wsi,
+                LWS_PRE + frame_p->pre_plus_payload,
+                frame_p->len,
+                frame_p->flags
+            );
+
+            if (wrote < (int)frame_p->len) {
+                warn("ERROR %d while writing to WebSocket!", wrote);
+                return -1;
+            }
+
+            courier->consume_pending_count++;
+            lws_callback_on_writable(wsi);
+        }
+
+        // Don’t close until we’ve flushed the buffer:
+        else if (courier->close_yn) {
             if (courier->close_status != LWS_CLOSE_STATUS_NOSTATUS) {
                 lws_close_reason(
                     wsi,
@@ -554,11 +602,24 @@ const lws_plugin_evlib_t evlib_custom = {
 
 void _courier_sv_send( pTHX_ courier_t* courier, U8* buf, STRLEN len, enum lws_write_protocol protocol ) {
 
-    U8 msgbuf[len + LWS_PRE];
-    Copy(buf, LWS_PRE + msgbuf, len, U8);
+    frame_t frame = {
+        .len = len,
+        .flags = lws_write_ws_flags(protocol, 1, 1),
+    };
 
-    // TODO: Put this in a writeable callback
-    lws_write( courier->wsi, msgbuf + LWS_PRE, len, protocol );
+    Newx(frame.pre_plus_payload, len + LWS_PRE, U8);
+
+    Copy(buf, LWS_PRE + frame.pre_plus_payload, len, U8);
+
+    if (!lws_ring_insert( courier->ring, &frame, 1 )) {
+        _destroy_frame(&frame);
+
+        size_t count = lws_ring_get_count_free_elements(courier->ring);
+
+        croak("Failed to add message to ring buffer! (%zu ring nodes free)", count);
+    }
+
+    lws_callback_on_writable(courier->wsi);
 }
 
 /* ---------------------------------------------------------------------- */
@@ -708,6 +769,18 @@ _new (SV* hostname, int port, SV* path, int tls_opts, SV* loop_obj, SV* connecte
 
 # ----------------------------------------------------------------------
 
+MODULE = Net::Libwebsockets     PACKAGE = Net::Libwebsockets::WebSocket::Pause
+
+PROTOTYPES: DISABLE
+
+void
+DESTROY (SV* self_sv)
+    CODE:
+        struct lws *wsi = svrv_to_ptr(aTHX_ self_sv);
+        lws_rx_flow_control(wsi, 0);
+
+# ----------------------------------------------------------------------
+
 MODULE = Net::Libwebsockets     PACKAGE = Net::Libwebsockets::WebSocket::Courier
 
 PROTOTYPES: DISABLE
@@ -752,7 +825,7 @@ send_text (SV* self_sv, SV* payload_sv)
         STRLEN len;
         U8* buf = (U8*) SvPVutf8(payload_sv, len);
 
-        _courier_sv_send(aTHX_ courier, buf, len, LWS_WRITE_BINARY);
+        _courier_sv_send(aTHX_ courier, buf, len, LWS_WRITE_TEXT);
 
 void
 send_binary (SV* self_sv, SV* payload_sv)
@@ -763,6 +836,20 @@ send_binary (SV* self_sv, SV* payload_sv)
         U8* buf = (U8*) SvPVbyte(payload_sv, len);
 
         _courier_sv_send(aTHX_ courier, buf, len, LWS_WRITE_BINARY);
+
+SV*
+pause (SV* self_sv)
+    CODE:
+        if (GIMME_V == G_VOID) croak("Don’t call pause() in void context!");
+
+        courier_t* courier = svrv_to_ptr(aTHX_ self_sv);
+
+        lws_rx_flow_control(courier->wsi, 1);
+
+        RETVAL = _ptr_to_svrv(aTHX_ courier->wsi, gv_stashpv(PAUSE_CLASS, FALSE));
+
+    OUTPUT:
+        RETVAL
 
 void
 close (SV* self_sv, U16 code=LWS_CLOSE_STATUS_NOSTATUS, SV* reason_sv=NULL)
@@ -810,5 +897,7 @@ DESTROY (SV* self_sv)
         }
 
         SvREFCNT_dec(courier->done_d);
+
+        lws_ring_destroy(courier->ring);
 
         Safefree(courier);
