@@ -48,6 +48,8 @@ print STDERR "============ connected!!\n";
 
         # 2. Anything we receive from STDIN should go to WS:
 
+        my @pauses;
+
         my $in_w;
         $in_w = AnyEvent->io(
             fh => \*STDIN,
@@ -57,8 +59,16 @@ print STDERR "============ connected!!\n";
 
                 if ($in) {
                     $ws->send_binary($buf);
+
+                    #push @pauses, $ws->pause();
+                    #my $t; $t = AnyEvent->timer(
+                    #    after => 3,
+                    #    cb => sub { shift @pauses; undef $t },
+                    #);
                 }
                 else {
+                    @pauses = ();
+
                     undef $in_w;
 
                     my $close_code;

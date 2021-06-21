@@ -42,6 +42,10 @@ typedef struct {
     enum lws_write_protocol flags;
 } frame_t;
 
+typedef struct {
+    SV* courier_sv;
+} pause_t;
+
 typedef enum {
     NET_LWS_MESSAGE_TYPE_TEXT,
     NET_LWS_MESSAGE_TYPE_BINARY,
@@ -69,6 +73,8 @@ typedef struct {
 
     struct lws_ring *ring;
     unsigned consume_pending_count;
+
+    unsigned pauses;
 
     bool            close_yn;
     uint16_t        close_status;
@@ -279,6 +285,8 @@ courier_t* _new_courier(pTHX_ struct lws *wsi, struct lws_context *context) {
 
     courier->ring = lws_ring_create(sizeof(frame_t), RING_DEPTH, _destroy_frame);
     courier->consume_pending_count = 0;
+
+    courier->pauses = 0;
 
     if (!courier->ring) {
         Safefree(courier);
@@ -776,8 +784,19 @@ PROTOTYPES: DISABLE
 void
 DESTROY (SV* self_sv)
     CODE:
-        struct lws *wsi = svrv_to_ptr(aTHX_ self_sv);
-        lws_rx_flow_control(wsi, 0);
+        pause_t *my_pause = svrv_to_ptr(aTHX_ self_sv);
+
+        courier_t *courier = svrv_to_ptr(aTHX_ my_pause->courier_sv);
+
+        courier->pauses--;
+
+        if (!courier->pauses) {
+            lws_rx_flow_control(courier->wsi, 1);
+        }
+
+        SvREFCNT_dec(my_pause->courier_sv);
+
+        Safefree(my_pause);
 
 # ----------------------------------------------------------------------
 
@@ -844,9 +863,19 @@ pause (SV* self_sv)
 
         courier_t* courier = svrv_to_ptr(aTHX_ self_sv);
 
-        lws_rx_flow_control(courier->wsi, 1);
+        pause_t* my_pause;
+        Newx(my_pause, 1, pause_t);
 
-        RETVAL = _ptr_to_svrv(aTHX_ courier->wsi, gv_stashpv(PAUSE_CLASS, FALSE));
+        my_pause->courier_sv = self_sv;
+        SvREFCNT_inc(self_sv);
+
+        if (!courier->pauses) {
+            lws_rx_flow_control(courier->wsi, 0);
+        }
+
+        courier->pauses++;
+
+        RETVAL = _ptr_to_svrv(aTHX_ my_pause, gv_stashpv(PAUSE_CLASS, FALSE));
 
     OUTPUT:
         RETVAL
