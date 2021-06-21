@@ -8,8 +8,11 @@
 #include <libwebsockets.h>
 
 #include <poll.h>
+#include <unistd.h>
 
 #include <arpa/inet.h>
+
+#define DEBUG 1
 
 #define WEBSOCKET_CLASS "Net::Libwebsockets::WebSocket::Client"
 #define COURIER_CLASS "Net::Libwebsockets::WebSocket::Courier"
@@ -17,7 +20,11 @@
 
 #define NET_LWS_LOCAL_PROTOCOL_NAME "lws-net-libwebsockets"
 
-#define DEBUG 1
+#ifdef PL_phase
+#   define IS_GLOBAL_DESTRUCTION (PL_phase == PERL_PHASE_DESTRUCT)
+#else
+#   define IS_GLOBAL_DESTRUCTION PL_dirty
+#endif
 
 /*
 #define FRAME_FLAG_TEXT         1
@@ -76,6 +83,8 @@ typedef struct {
 
     unsigned pauses;
 
+    pid_t pid;
+
     bool            close_yn;
     uint16_t        close_status;
     unsigned char   close_reason[123];
@@ -91,6 +100,7 @@ typedef struct {
     struct lws_context* lws_context;
 
     courier_t* courier;
+    SV* courier_sv;
 
     char* message_content;
     STRLEN content_length;
@@ -161,10 +171,10 @@ void _call_object_method (pTHX_ SV* object, const char* methname, unsigned argsc
 
     EXTEND(SP, 1 + argscount);
 
-    mPUSHs( newSVsv(object) );
+    PUSHs( sv_mortalcopy(object) );
 
     unsigned i=0;
-    for (; i<argscount; i++) PUSHs( newSVsv(mortal_args[i]) );
+    for (; i<argscount; i++) PUSHs( mortal_args[i] );
 
     PUTBACK;
 
@@ -218,6 +228,7 @@ void _on_ws_close (pTHX_ my_perl_context_t* my_perl_context, uint16_t code, size
     };
 
     _call_object_method( aTHX_ done_d, "resolve", 2, args );
+    SvREFCNT_dec(done_d);
 }
 
 void _on_ws_error (pTHX_ my_perl_context_t* my_perl_context, size_t reasonlen, const char* reason) {
@@ -236,6 +247,7 @@ void _on_ws_error (pTHX_ my_perl_context_t* my_perl_context, size_t reasonlen, c
     };
 
     _call_object_method( aTHX_ deferred_sv, "reject", 1, args );
+    SvREFCNT_dec(deferred_sv);
 }
 
 SV* _new_deferred_sv(pTHX) {
@@ -282,6 +294,8 @@ courier_t* _new_courier(pTHX_ struct lws *wsi, struct lws_context *context) {
     courier->on_binary_count = 0;
     courier->on_binary = NULL;
     courier->close_yn = false;
+
+    courier->pid = getpid();
 
     courier->ring = lws_ring_create(sizeof(frame_t), RING_DEPTH, _destroy_frame);
     courier->consume_pending_count = 0;
@@ -357,9 +371,13 @@ fprintf(stderr, "protocol init\n");
         // ?
         break;
 
-    case LWS_CALLBACK_PROTOCOL_DESTROY:
-fprintf(stderr, "protocol destroy\n");
-        // ?
+    case LWS_CALLBACK_WSI_DESTROY:
+fprintf(stderr, "wsi destroy\n");
+        if (my_perl_context->courier_sv) {
+            SvREFCNT_dec(my_perl_context->courier_sv);
+        }
+fprintf(stderr, "wsi destroy2\n");
+
         break;
 
     case LWS_CALLBACK_CLIENT_ESTABLISHED: {
@@ -367,13 +385,14 @@ fprintf(stderr, "protocol destroy\n");
 
         my_perl_context->courier = courier;
 
-        SV* courier_sv = sv_2mortal(
-            _ptr_to_svrv(aTHX_ courier, gv_stashpv(COURIER_CLASS, FALSE))
-        );
+        SV* courier_sv = _ptr_to_svrv(aTHX_ courier, gv_stashpv(COURIER_CLASS, FALSE));
+        my_perl_context->courier_sv = courier_sv;
 
-        SV* args[] = { courier_sv };
+        SV* args[] = { sv_mortalcopy(courier_sv) };
 
         _call_object_method( aTHX_ my_perl_context->connect_d, "resolve", 1, args );
+        SvREFCNT_dec(my_perl_context->connect_d);
+
         } break;
 
     case LWS_CALLBACK_WS_PEER_INITIATED_CLOSE:
@@ -418,6 +437,7 @@ fprintf(stderr, "peer started close\n");
 
         // Don’t close until we’ve flushed the buffer:
         else if (courier->close_yn) {
+warn("writable: we started close\n");
             if (courier->close_status != LWS_CLOSE_STATUS_NOSTATUS) {
                 lws_close_reason(
                     wsi,
@@ -486,6 +506,8 @@ fprintf(stderr, "peer started close\n");
                 0,
                 NULL
             );
+
+            SvREFCNT_dec(courier->done_d);
         }
         else {
             warn("LWS_CALLBACK_CLIENT_CLOSED but we didn’t close … is this OK?");
@@ -494,7 +516,7 @@ fprintf(stderr, "peer started close\n");
         } break;
 
     default:
-fprintf(stderr, "other callback\n");
+warn("other callback (%d)\n", reason);
         break;
     }
 
@@ -698,6 +720,7 @@ _new (SV* hostname, int port, SV* path, int tls_opts, SV* loop_obj, SV* connecte
 
         my_perl_context->connect_d = connected_d;
         my_perl_context->courier = NULL;
+        my_perl_context->courier_sv = NULL;
         SvREFCNT_inc(connected_d);
 
 
@@ -859,6 +882,7 @@ send_binary (SV* self_sv, SV* payload_sv)
 SV*
 pause (SV* self_sv)
     CODE:
+    warn("xxxxxxxxxxxx pausing\n");
         if (GIMME_V == G_VOID) croak("Don’t call pause() in void context!");
 
         courier_t* courier = svrv_to_ptr(aTHX_ self_sv);
@@ -905,9 +929,12 @@ close (SV* self_sv, U16 code=LWS_CLOSE_STATUS_NOSTATUS, SV* reason_sv=NULL)
 void
 DESTROY (SV* self_sv)
     CODE:
-        fprintf(stderr, "===== DESTROY courier\n");
-
         courier_t* courier = svrv_to_ptr(aTHX_ self_sv);
+        warn("xxxxxx destroying %" SVf "\n", self_sv);
+
+        if (IS_GLOBAL_DESTRUCTION && (getpid() == courier->pid)) {
+            warn("Destroying %" SVf " at global destruction!\n", self_sv);
+        }
 
         if (courier->on_text) {
             for (unsigned i=0; i<courier->on_text_count; i++) {
