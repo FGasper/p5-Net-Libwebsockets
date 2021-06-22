@@ -734,6 +734,14 @@ get_timeout( SV* lws_context_sv )
     OUTPUT:
         RETVAL
 
+void
+on_timeout( SV* lws_context_sv )
+    CODE:
+        intptr_t lws_context_int = (intptr_t) SvUV(lws_context_sv);
+        struct lws_context *context = (void *) lws_context_int;
+
+        lws_service(context, 0);
+
 SV*
 _new (SV* hostname, int port, SV* path, int tls_opts, SV* loop_obj, SV* connected_d)
     CODE:
@@ -760,7 +768,8 @@ _new (SV* hostname, int port, SV* path, int tls_opts, SV* loop_obj, SV* connecte
         my_perl_context->courier_sv = NULL;
         SvREFCNT_inc(connected_d);
 
-
+       my_perl_context->lws_retry.secs_since_valid_ping = 3;
+       my_perl_context->lws_retry.secs_since_valid_hangup = 30;
 
         info.event_lib_custom = &evlib_custom;
 
@@ -810,6 +819,7 @@ _new (SV* hostname, int port, SV* path, int tls_opts, SV* loop_obj, SV* connecte
         client.host = hostname_str;
         client.origin = hostname_str;
         client.ssl_connection = tls_opts;
+        client.retry_and_idle_policy = &my_perl_context->lws_retry;
         //client.local_protocol_name = NET_LWS_LOCAL_PROTOCOL_NAME;
         client.local_protocol_name = protocols[0].name;
 

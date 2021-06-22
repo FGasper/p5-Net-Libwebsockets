@@ -12,6 +12,8 @@ use AnyEvent ();
 use Net::Libwebsockets ();
 
 sub start_timer {
+    my ($self) = @_;
+
     my $ctx = $self->{'lws_context'} or die "need lws_context!";
 
     my $pkg = $self->{'context_package'};
@@ -20,15 +22,15 @@ sub start_timer {
 
     my $timer_sr = \$self->{'timer'};
 
-    my $idle_w;
+    my ($idle_w, $timeout_ms);
 
     my $set_timeout_cr = sub {
         my $st_cr = __SUB__;
 
-        $timeout = $get_timeout_cr->($ctx);
+        $timeout_ms = $get_timeout_cr->($ctx);
 
         $$timer_sr = AnyEvent->timer(
-            after => $timeout / 1000,
+            after => $timeout_ms / 1000,
             cb => sub {
                 undef $idle_w;
                 $pkg->can('on_timeout')->($ctx);
@@ -37,7 +39,7 @@ sub start_timer {
         );
     };
 
-    $idle_w = AnyEvent->idle($set_timeout_cr);
+    $idle_w = AnyEvent->idle(cb => $set_timeout_cr);
 }
 
 sub add_fd {
