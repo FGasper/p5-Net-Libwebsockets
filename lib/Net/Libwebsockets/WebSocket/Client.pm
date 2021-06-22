@@ -10,7 +10,12 @@ use Net::Libwebsockets ();
 use Promise::XS ();
 
 my @_REQUIRED = qw( url event );
-my %_KNOWN = map { $_ => 1 } (@_REQUIRED, 'tls');
+my %_KNOWN = map { $_ => 1 } (@_REQUIRED, 'tls', 'ping_interval', 'ping_timeout');
+
+my %DEFAULT = (
+    ping_interval => 30,
+    ping_timeout => 299,
+);
 
 sub connect {
     my (%opts) = @_;
@@ -21,7 +26,12 @@ sub connect {
     my @extra = sort grep { !$_KNOWN{$_} } keys %opts;
     Carp::croak "Unknown: @extra" if @extra;
 
+    # Tolerate ancient perls that lack “//=”:
+    !defined($opts{$_}) && ($opts{$_} = $DEFAULT{$_}) for keys %DEFAULT;
+
     my ($url, $event, $tls_opt) = @opts{'url', 'event', 'tls'};
+
+    _validate_uint($_ => $opts{$_}) for sort keys %DEFAULT;
 
     my ($scheme, $auth, $path, $query) = URI::Split::uri_split($url);
 
@@ -47,9 +57,25 @@ sub connect {
 
     my $loop_obj = _get_loop_obj($event);
 
-    my $wsc = _new($hostname, $port, $path, $tls_flags, $loop_obj, $connected_d);
+    my $wsc = _new(
+        $hostname, $port, $path,
+        $tls_flags,
+        @opts{'ping_interval', 'ping_timeout'},
+        $loop_obj,
+        $connected_d,
+    );
 
     return $connected_d->promise()->finally( sub { undef $wsc } );
+}
+
+sub _validate_uint {
+    my ($name, $specimen) = @_;
+
+    if ($specimen =~ tr<0-9><>c) {
+        die "Bad “$name”: $specimen\n";
+    }
+
+    return;
 }
 
 sub _get_loop_obj {

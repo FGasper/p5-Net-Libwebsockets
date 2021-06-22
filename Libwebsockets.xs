@@ -124,6 +124,7 @@ typedef struct {
     my_perl_context_t* perl_context;
     net_lws_abstract_loop_t* abstract_loop;
     struct lws_context *lws_context;
+    pid_t pid;
 } connect_state_t;
 
 SV* _ptr_to_svrv(pTHX_ void* ptr, HV* stash) {
@@ -749,7 +750,7 @@ on_timeout( SV* lws_context_sv )
         lws_service(context, 0);
 
 SV*
-_new (SV* hostname, int port, SV* path, int tls_opts, SV* loop_obj, SV* connected_d)
+_new (SV* hostname, int port, SV* path, int tls_opts, unsigned ping_interval, unsigned ping_timeout, SV* loop_obj, SV* connected_d)
     CODE:
         lws_set_log_level( LLL_USER | LLL_ERR | LLL_WARN | LLL_NOTICE | LLL_DEBUG | LLL_PARSER | LLL_HEADER | LLL_INFO, NULL );
 
@@ -763,8 +764,6 @@ _new (SV* hostname, int port, SV* path, int tls_opts, SV* loop_obj, SV* connecte
             | LWS_SERVER_OPTION_VALIDATE_UTF8
         );
 
-
-
         my_perl_context_t* my_perl_context;
         Newxz(my_perl_context, 1, my_perl_context_t); // TODO clean up
         my_perl_context->aTHX = aTHX;
@@ -774,8 +773,8 @@ _new (SV* hostname, int port, SV* path, int tls_opts, SV* loop_obj, SV* connecte
         my_perl_context->courier_sv = NULL;
         SvREFCNT_inc(connected_d);
 
-       my_perl_context->lws_retry.secs_since_valid_ping = 3;
-       my_perl_context->lws_retry.secs_since_valid_hangup = 30;
+        my_perl_context->lws_retry.secs_since_valid_ping = ping_interval;
+        my_perl_context->lws_retry.secs_since_valid_hangup = ping_timeout;
 
         info.event_lib_custom = &evlib_custom;
 
@@ -845,11 +844,36 @@ _new (SV* hostname, int port, SV* path, int tls_opts, SV* loop_obj, SV* connecte
         connect_state->perl_context = my_perl_context;
         connect_state->lws_context = context;
         connect_state->abstract_loop = abstract_loop;
+        connect_state->pid = getpid();
 
         RETVAL = _ptr_to_svrv(aTHX_ connect_state, gv_stashpv(WEBSOCKET_CLASS, FALSE));
 
     OUTPUT:
         RETVAL
+
+void
+DESTROY (SV* self_sv)
+    CODE:
+        connect_state_t* connect_state = svrv_to_ptr(aTHX_ self_sv);
+
+        if (IS_GLOBAL_DESTRUCTION && (getpid() == connect_state->pid)) {
+            warn("Destroying %" SVf " at global destruction!\n", self_sv);
+        }
+
+        if (!connect_state->perl_context->connect_d) {
+            // If we got here, then we’re DESTROYed before the
+            // connection was ever made.
+
+            lws_context_destroy(connect_state->lws_context);
+
+            SvREFCNT_dec(connect_state->abstract_loop->perlobj);
+            Safefree(connect_state->abstract_loop);
+
+            SvREFCNT_dec(connect_state->perl_context->connect_d);
+            Safefree(connect_state->perl_context);
+        }
+
+        Safefree(connect_state);
 
 # ----------------------------------------------------------------------
 
@@ -860,9 +884,9 @@ PROTOTYPES: DISABLE
 void
 DESTROY (SV* self_sv)
     CODE:
-        pause_t *my_pause = svrv_to_ptr(aTHX_ self_sv);
+        pause_t* my_pause = svrv_to_ptr(aTHX_ self_sv);
 
-        courier_t *courier = svrv_to_ptr(aTHX_ my_pause->courier_sv);
+        courier_t* courier = svrv_to_ptr(aTHX_ my_pause->courier_sv);
 
         courier->pauses--;
 
