@@ -14,6 +14,8 @@ sub set_lws_context {
 
     $self->{'lws_context'} = $ctx;
 
+    $self->start_timer();
+
     return;
 }
 

@@ -3,11 +3,42 @@ package Net::Libwebsockets::Loop::AnyEvent;
 use strict;
 use warnings;
 
+use feature 'current_sub';
+
 use parent 'Net::Libwebsockets::Loop';
 
 use AnyEvent ();
 
 use Net::Libwebsockets ();
+
+sub start_timer {
+    my $ctx = $self->{'lws_context'} or die "need lws_context!";
+
+    my $pkg = $self->{'context_package'};
+
+    my $get_timeout_cr = $pkg->can('get_timeout');
+
+    my $timer_sr = \$self->{'timer'};
+
+    my $idle_w;
+
+    my $set_timeout_cr = sub {
+        my $st_cr = __SUB__;
+
+        $timeout = $get_timeout_cr->($ctx);
+
+        $$timer_sr = AnyEvent->timer(
+            after => $timeout / 1000,
+            cb => sub {
+                undef $idle_w;
+                $pkg->can('on_timeout')->($ctx);
+                $st_cr->();
+            },
+        );
+    };
+
+    $idle_w = AnyEvent->idle($set_timeout_cr);
+}
 
 sub add_fd {
     $_[2] = Net::Libwebsockets::LWS_EV_READ;

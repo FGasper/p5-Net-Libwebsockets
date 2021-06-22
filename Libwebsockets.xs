@@ -14,6 +14,8 @@
 
 #define DEBUG 1
 
+#define DEFAULT_POLL_TIMEOUT (10000)
+
 #define WEBSOCKET_CLASS "Net::Libwebsockets::WebSocket::Client"
 #define COURIER_CLASS "Net::Libwebsockets::WebSocket::Courier"
 #define PAUSE_CLASS "Net::Libwebsockets::WebSocket::Pause"
@@ -101,6 +103,8 @@ typedef struct {
 
     courier_t* courier;
     SV* courier_sv;
+
+    lws_retry_bo_t lws_retry;
 
     char* message_content;
     STRLEN content_length;
@@ -714,6 +718,21 @@ lws_service_fd_write( SV* lws_context_sv, int fd )
         };
 
         lws_service_fd(context, &pollfd);
+
+int
+get_timeout( SV* lws_context_sv )
+    CODE:
+        intptr_t lws_context_int = (intptr_t) SvUV(lws_context_sv);
+        struct lws_context *context = (void *) lws_context_int;
+
+        RETVAL = lws_service_adjust_timeout(
+            context,
+            DEFAULT_POLL_TIMEOUT,
+            0
+        );
+
+    OUTPUT:
+        RETVAL
 
 SV*
 _new (SV* hostname, int port, SV* path, int tls_opts, SV* loop_obj, SV* connected_d)
