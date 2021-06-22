@@ -6,7 +6,10 @@ use warnings;
 sub new {
     my ($class, $ctx_pkg) = @_;
 
-    return bless { context_package => $ctx_pkg }, $class;
+    return bless {
+        pid => $$,
+        context_package => $ctx_pkg,
+    }, $class;
 }
 
 sub set_lws_context {
@@ -15,6 +18,16 @@ sub set_lws_context {
     $self->{'lws_context'} = $ctx;
 
     $self->start_timer();
+
+    return;
+}
+
+sub DESTROY {
+    my ($self) = @_;
+
+    if ($$ == $self->{'pid'} && 'DESTRUCT' eq ${^GLOBAL_PHASE}) {
+        warn "Destroying $self at global destruction; possible memory leak!\n";
+    }
 
     return;
 }

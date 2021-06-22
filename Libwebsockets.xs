@@ -403,6 +403,12 @@ fprintf(stderr, "wsi destroy\n");
         if (my_perl_context->courier_sv) {
             SvREFCNT_dec(my_perl_context->courier_sv);
         }
+
+        net_lws_abstract_loop_t* myloop_p = (net_lws_abstract_loop_t*) lws_evlib_wsi_to_evlib_pt(wsi);
+
+        if (myloop_p && myloop_p->perlobj) {
+            SvREFCNT_dec(myloop_p->perlobj);
+        }
 fprintf(stderr, "wsi destroy2\n");
 
         break;
