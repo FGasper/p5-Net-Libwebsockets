@@ -33,16 +33,20 @@ sub connect {
 
     _validate_uint($_ => $opts{$_}) for sort keys %DEFAULT;
 
-    if ($headers && ('ARRAY' ne ref $headers)) {
-        Carp::croak "“headers” must be an arrayref, not “$headers”!";
-    }
+    my @headers_copy;
 
-    if (@$headers % 2) {
-        Carp::croak "“headers” (@$headers) must have an even number of members!";
-    }
+    if ($headers) {
+        if ('ARRAY' ne ref $headers) {
+            Carp::croak "“headers” must be an arrayref, not “$headers”!";
+        }
 
-    my @headers_copy = $headers ? @$headers : ();
-    utf8::downgrade($_) for @headers_copy;
+        if (@$headers % 2) {
+            Carp::croak "“headers” (@$headers) must have an even number of members!";
+        }
+
+        @headers_copy = $headers ? @$headers : ();
+        utf8::downgrade($_) for @headers_copy;
+    }
 
     my ($scheme, $auth, $path, $query) = URI::Split::uri_split($url);
 
