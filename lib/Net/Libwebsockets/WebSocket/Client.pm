@@ -10,7 +10,7 @@ use Net::Libwebsockets ();
 use Promise::XS ();
 
 my @_REQUIRED = qw( url event );
-my %_KNOWN = map { $_ => 1 } (@_REQUIRED, 'tls', 'ping_interval', 'ping_timeout');
+my %_KNOWN = map { $_ => 1 } (@_REQUIRED, 'headers', 'tls', 'ping_interval', 'ping_timeout');
 
 my %DEFAULT = (
     ping_interval => 30,
@@ -29,9 +29,20 @@ sub connect {
     # Tolerate ancient perls that lack “//=”:
     !defined($opts{$_}) && ($opts{$_} = $DEFAULT{$_}) for keys %DEFAULT;
 
-    my ($url, $event, $tls_opt) = @opts{'url', 'event', 'tls'};
+    my ($url, $event, $tls_opt, $headers) = @opts{'url', 'event', 'tls', 'headers'};
 
     _validate_uint($_ => $opts{$_}) for sort keys %DEFAULT;
+
+    if ($headers && ('ARRAY' ne ref $headers)) {
+        Carp::croak "“headers” must be an arrayref, not “$headers”!";
+    }
+
+    if (@$headers % 2) {
+        Carp::croak "“headers” (@$headers) must have an even number of members!";
+    }
+
+    my @headers_copy = $headers ? @$headers : ();
+    utf8::downgrade($_) for @headers_copy;
 
     my ($scheme, $auth, $path, $query) = URI::Split::uri_split($url);
 
@@ -59,6 +70,7 @@ sub connect {
 
     my $wsc = _new(
         $hostname, $port, $path,
+        \@headers_copy,
         $tls_flags,
         @opts{'ping_interval', 'ping_timeout'},
         $loop_obj,

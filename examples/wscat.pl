@@ -23,6 +23,7 @@ my $url = $ARGV[0] or die "Need URL! (Try: ws://echo.websocket.org)\n";
     Net::Libwebsockets::WebSocket::Client::connect(
         url => $url,
         event => 'AnyEvent',
+        headers => [ 'X-Foo' => 'bar' ],
     )->then(
         sub ($ws) {
             print STDERR "============ connected!!\n";
@@ -89,10 +90,15 @@ my $url = $ARGV[0] or die "Need URL! (Try: ws://echo.websocket.org)\n";
 
             return $ws->done_p();
         },
-    )->then(
-        $cv,
-        sub { $cv->croak(@_) }
-    );
+#    )->then(
+#        $cv,
+#        sub {
+#            print "FAILED: @_\n";
+#            $cv->croak(@_);
+#            print "after CV croak: @_\n";
+#        },
+#    );
+    )->finally($cv);
 
     $cv->recv();
 }

@@ -99,6 +99,8 @@ typedef struct {
     tTHX aTHX;
     SV* connect_d;
 
+    SV* headers_ar;
+
     struct lws_context* lws_context;
 
     courier_t* courier;
@@ -269,9 +271,11 @@ void _on_ws_error (pTHX_ my_perl_context_t* my_perl_context, size_t reasonlen, c
     SV** deferred_svp;
 
     if (my_perl_context->courier) {
+warn("promise is done_d\n");
         deferred_svp = &my_perl_context->courier->done_d;
     }
     else {
+warn("promise is connect_d\n");
         deferred_svp = &my_perl_context->connect_d;
     }
 
@@ -418,6 +422,46 @@ fprintf(stderr, "wsi destroy2\n");
 warn("cancelled (len=%d)\n", len);
         break;
 
+    case LWS_CALLBACK_CLIENT_APPEND_HANDSHAKE_HEADER: {
+        unsigned char **p = (unsigned char **)in;
+        unsigned char *end = (*p) + len;
+
+        AV* headers_av = (AV*) SvRV(my_perl_context->headers_ar);
+
+        int headers_len = 1 + av_top_index(headers_av);
+
+        STRLEN valuelen;
+        SV** key;
+        SV** value;
+
+        int failed = 0;
+
+        for (int h=0; h<headers_len; h += 2) {
+            key = av_fetch(headers_av, h, 0);
+            assert(key);
+
+            value = av_fetch(headers_av, 1 + h, 0);
+            assert(value);
+
+            const U8* valuestr = (const U8*) SvPVbyte( *value, valuelen );
+
+            int failed = lws_add_http_header_by_name(
+                wsi,
+                (const U8*) SvPVbyte_nolen(*key),
+                valuestr,
+                valuelen,
+                p, end
+            );
+
+            if (failed) break;
+        }
+
+        SvREFCNT_dec(my_perl_context->headers_ar);
+
+        if (failed) return -1;
+
+        } break;
+
     case LWS_CALLBACK_CLIENT_ESTABLISHED: {
         courier_t* courier = _new_courier(aTHX, wsi, my_perl_context->lws_context);
 
@@ -552,15 +596,6 @@ warn("other callback (%d)\n", reason);
     //return lws_callback_http_dummy(wsi, reason, user, in, len);
     return 0;
 }
-
-#define LWS_PLUGIN_PROTOCOL_NET_LWS \
-        { \
-                NET_LWS_LOCAL_PROTOCOL_NAME, \
-                net_lws_callback, \
-                sizeof(struct per_session_data__minimal_client_echo), \
-                1024, \
-                0, NULL, 0 \
-        }
 
 static int
 init_pt_custom (struct lws_context *cx, void *_loop, int tsi) {
@@ -744,13 +779,14 @@ get_timeout( SV* lws_context_sv )
 void
 on_timeout( SV* lws_context_sv )
     CODE:
+        fprintf(stderr, "on timeout\n");
         intptr_t lws_context_int = (intptr_t) SvUV(lws_context_sv);
         struct lws_context *context = (void *) lws_context_int;
 
         lws_service(context, 0);
 
 SV*
-_new (SV* hostname, int port, SV* path, int tls_opts, unsigned ping_interval, unsigned ping_timeout, SV* loop_obj, SV* connected_d)
+_new (SV* hostname, int port, SV* path, SV* headers_ar, int tls_opts, unsigned ping_interval, unsigned ping_timeout, SV* loop_obj, SV* connected_d)
     CODE:
         lws_set_log_level( LLL_USER | LLL_ERR | LLL_WARN | LLL_NOTICE | LLL_DEBUG | LLL_PARSER | LLL_HEADER | LLL_INFO, NULL );
 
@@ -769,9 +805,13 @@ _new (SV* hostname, int port, SV* path, int tls_opts, unsigned ping_interval, un
         my_perl_context->aTHX = aTHX;
 
         my_perl_context->connect_d = connected_d;
+        SvREFCNT_inc(connected_d);
+
+        my_perl_context->headers_ar = headers_ar;
+        SvREFCNT_inc(headers_ar);
+
         my_perl_context->courier = NULL;
         my_perl_context->courier_sv = NULL;
-        SvREFCNT_inc(connected_d);
 
         my_perl_context->lws_retry.secs_since_valid_ping = ping_interval;
         my_perl_context->lws_retry.secs_since_valid_hangup = ping_timeout;
@@ -854,6 +894,7 @@ _new (SV* hostname, int port, SV* path, int tls_opts, unsigned ping_interval, un
 void
 DESTROY (SV* self_sv)
     CODE:
+        warn("start connect_state destroy\n");
         connect_state_t* connect_state = svrv_to_ptr(aTHX_ self_sv);
 
         if (IS_GLOBAL_DESTRUCTION && (getpid() == connect_state->pid)) {
@@ -874,6 +915,7 @@ DESTROY (SV* self_sv)
         }
 
         Safefree(connect_state);
+        warn("end connect_state destroy\n");
 
 # ----------------------------------------------------------------------
 
@@ -1034,3 +1076,4 @@ DESTROY (SV* self_sv)
         lws_ring_destroy(courier->ring);
 
         Safefree(courier);
+        warn("end courier destroy\n");
