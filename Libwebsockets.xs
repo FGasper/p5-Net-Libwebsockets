@@ -360,11 +360,11 @@ void _on_ws_message(pTHX_ my_perl_context_t* my_perl_context, SV* msgsv) {
             assert(0);
     }
 
-    SV* args[] = { NULL };
+    SV* thisarg;
 
     for (unsigned c=0; c<cbcount; c++) {
-        args[0] = (c == cbcount-1) ? msgsv : sv_mortalcopy(msgsv);
-        _call_sv_trap(aTHX_ cbs[c], args, 1);
+        thisarg = (c == cbcount-1) ? msgsv : sv_mortalcopy(msgsv);
+        _call_sv_trap(aTHX_ cbs[c], &thisarg, 1);
     }
 }
 
