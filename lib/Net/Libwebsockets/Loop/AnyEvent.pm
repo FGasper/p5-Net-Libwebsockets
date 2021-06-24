@@ -22,25 +22,21 @@ sub start_timer {
 
     my $timer_sr = \$self->{'timer'};
 
-    my ($idle_w, $timeout_ms);
+    my $timeout_ms;
 
-    my $set_timeout_cr = sub {
-        my $st_cr = __SUB__;
-
+    AnyEvent::postpone( sub {
         $timeout_ms = $get_timeout_cr->($ctx);
 
         print "==== new timeout: $timeout_ms ms\n";
 
         $$timer_sr = AnyEvent->timer(
             after => $timeout_ms / 1000,
-            cb => sub {
-                undef $idle_w;
-                $st_cr->();
-            },
-        );
-    };
 
-    $idle_w = AnyEvent->idle(cb => $set_timeout_cr);
+            # Per LWS’s custom event loop example, there’s nothing to *do*
+            # on timeout except just start the loop again.
+            cb => __SUB__,
+        );
+    } );
 }
 
 sub add_fd {
