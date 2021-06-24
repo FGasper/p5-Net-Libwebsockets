@@ -28,21 +28,6 @@
 #   define IS_GLOBAL_DESTRUCTION PL_dirty
 #endif
 
-/*
-#define FRAME_FLAG_TEXT         1
-#define FRAME_FLAG_CONTINUATION 2
-#define FRAME_FLAG_NONFINAL     4
-
-#define FRAME_IS_TEXT(f)    (f.flags & FRAME_FLAG_TEXT)
-#define FRAME_IS_BINARY(f)  (!FRAME_IS_TEXT(f))
-
-#define FRAME_IS_CONTINUATION(f)    (f.flags & FRAME_FLAG_CONTINUATION)
-#define FRAME_IS_FIRST(f)           (!FRAME_IS_CONTINUATION(f))
-
-#define FRAME_IS_NONFINAL(f)    (f.flags & FRAME_FLAG_NONFINAL)
-#define FRAME_IS_FIRST(f)       (!FRAME_IS_NONFINAL(f))
-*/
-
 #define RING_DEPTH 1024
 
 typedef struct {
@@ -789,6 +774,9 @@ _new (SV* hostname, int port, SV* path, SV* headers_ar, int tls_opts, unsigned p
             LWS_SERVER_OPTION_DO_SSL_GLOBAL_INIT
             | LWS_SERVER_OPTION_VALIDATE_UTF8
         );
+
+        // TODO: make this adjustable
+        info.extensions = default_extensions;
 
         my_perl_context_t* my_perl_context;
         Newxz(my_perl_context, 1, my_perl_context_t); // TODO clean up
