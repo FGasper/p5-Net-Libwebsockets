@@ -889,6 +889,11 @@ DESTROY (SV* self_sv)
             Safefree(connect_state->abstract_loop);
 
             SvREFCNT_dec(connect_state->perl_context->connect_d);
+
+            if (connect_state->perl_context->message_content) {
+                Safefree(connect_state->perl_context->message_content);
+            }
+
             Safefree(connect_state->perl_context);
         }
 
