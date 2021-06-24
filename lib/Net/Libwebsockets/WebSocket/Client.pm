@@ -45,7 +45,15 @@ sub connect {
         }
 
         @headers_copy = $headers ? @$headers : ();
-        utf8::downgrade($_) for @headers_copy;
+
+        for my $i ( 0 .. $#headers_copy ) {
+            utf8::downgrade($headers_copy[$i]);
+
+            # Weirdly, LWS adds the space between the key & value
+            # but not the trailing colon. So let’s add it.
+            #
+            $headers_copy[$i] .= ':' if !($i % 2);
+        }
     }
 
     my ($scheme, $auth, $path, $query) = URI::Split::uri_split($url);
