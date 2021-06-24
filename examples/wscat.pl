@@ -8,20 +8,25 @@ use experimental 'signatures';
 use AnyEvent;
 use AnyEvent::Handle;
 
+#use IO::Async::Loop;
+#use IO::Async::Stream;
+
 use Net::Libwebsockets::WebSocket::Client ();
 
 use IO::SigGuard;
 
-# TODO: beef up
 my $url = $ARGV[0] or die "Need URL! (Try: ws://echo.websocket.org)\n";
 
 {
     my $cv = AE::cv();
 
+#    my $loop = IO::Async::Loop->new();
+
     $_->blocking(0) for (\*STDIN, \*STDOUT);
 
     Net::Libwebsockets::WebSocket::Client::connect(
         url => $url,
+        #event => [ 'IOAsync', $loop ],
         event => 'AnyEvent',
         headers => [ 'X-Foo' => 'bar' ],
     )->then(
@@ -35,16 +40,24 @@ my $url = $ARGV[0] or die "Need URL! (Try: ws://echo.websocket.org)\n";
                 # omitting on_error for brevity
             );
 
+#            my $out_stream = IO::Async::Stream->new(
+#                write_handle => \*STDOUT,
+#            );
+#
+#            $loop->add($out_stream);
+
             $ws->on_text(
                 sub ($msg) {
                     utf8::encode($msg);
                     $out->push_write($msg);
+#                    $out_stream->write($msg);
                 },
             );
 
             $ws->on_binary(
                 sub ($msg) {
                     $out->push_write($msg);
+#                    $out_stream->write($msg);
                 },
             );
 
@@ -57,6 +70,9 @@ my $url = $ARGV[0] or die "Need URL! (Try: ws://echo.websocket.org)\n";
                 fh => \*STDIN,
                 poll => 'r',
                 cb => sub {
+#            $loop->watch_io(
+#                handle => \*STDIN,
+#                on_read_ready => sub {
                     my $in = IO::SigGuard::sysread( \*STDIN, my $buf, 65536 );
 
                     if ($in) {
@@ -72,6 +88,10 @@ my $url = $ARGV[0] or die "Need URL! (Try: ws://echo.websocket.org)\n";
                         @pauses = ();
 
                         undef $in_w;
+#                        $loop->unwatch_io(
+#                            handle => \*STDIN,
+#                            on_read_ready => 1,
+#                        );
 
                         my $close_code;
 
@@ -90,16 +110,12 @@ my $url = $ARGV[0] or die "Need URL! (Try: ws://echo.websocket.org)\n";
 
             return $ws->done_p();
         },
-#    )->then(
-#        $cv,
-#        sub {
-#            print "FAILED: @_\n";
-#            $cv->croak(@_);
-#            print "after CV croak: @_\n";
-#        },
-#    );
-    )->finally($cv);
+    )->finally( sub {
+#        $loop->stop();
+        $cv->();
+    } );
 
+#    $loop->run();
     $cv->recv();
 }
 

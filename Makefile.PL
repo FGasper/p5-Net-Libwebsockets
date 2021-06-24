@@ -36,6 +36,7 @@ WriteMakefile(
     PREREQ_PM => {
         'Promise::XS' => 0,
         'URI::Split' => 0,
+        'IO::FDSaver' => 0,
     },
 
     TEST_REQUIRES => {

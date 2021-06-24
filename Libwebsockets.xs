@@ -14,7 +14,7 @@
 
 #define DEBUG 1
 
-#define DEFAULT_POLL_TIMEOUT (10000)
+#define DEFAULT_POLL_TIMEOUT (5 * 60 * 1000)
 
 #define WEBSOCKET_CLASS "Net::Libwebsockets::WebSocket::Client"
 #define COURIER_CLASS "Net::Libwebsockets::WebSocket::Courier"
@@ -88,6 +88,8 @@ typedef struct {
 
     struct lws_context* lws_context;
 
+    net_lws_abstract_loop_t* abstract_loop;
+
     courier_t* courier;
     SV* courier_sv;
 
@@ -109,7 +111,6 @@ static const struct lws_extension default_extensions[] = {
 
 typedef struct {
     my_perl_context_t* perl_context;
-    net_lws_abstract_loop_t* abstract_loop;
     struct lws_context *lws_context;
     pid_t pid;
 } connect_state_t;
@@ -230,14 +231,6 @@ void finish_deferred_sv (pTHX_ SV** deferred_svp, const char* methname, SV* payl
 
 void _on_ws_close (pTHX_ my_perl_context_t* my_perl_context, uint16_t code, size_t reasonlen, const char* reason) {
 
-/*
-    SV* args[] = {
-        sv_2mortal( newSVuv(code) ),
-        sv_2mortal( newSVpvn(reason, reasonlen) ),
-    };
-
-    AV* code_reason = av_make( 2, args );
-*/
     AV* code_reason = av_make(
         2,
         ( (SV*[]) {
@@ -700,6 +693,27 @@ void _courier_sv_send( pTHX_ courier_t* courier, U8* buf, STRLEN len, enum lws_w
     lws_callback_on_writable(courier->wsi);
 }
 
+static inline void _lws_service_fd (pTHX_ UV lws_context_uv, int fd, short event) {
+    intptr_t lws_context_int = lws_context_uv;
+
+    struct lws_context *context = (void *) lws_context_int;
+
+    struct lws_pollfd pollfd = {
+        .fd = fd,
+        .events = event,
+        .revents = event,
+    };
+
+    lws_service_fd(context, &pollfd);
+
+    my_perl_context_t* my_perl_context = lws_context_user(context);
+
+    if (my_perl_context && my_perl_context->abstract_loop) {
+        SV* loop_sv = my_perl_context->abstract_loop->perlobj;
+        _call_object_method(aTHX_ loop_sv, "set_timer", 0, NULL);
+    }
+}
+
 /* ---------------------------------------------------------------------- */
 
 MODULE = Net::Libwebsockets     PACKAGE = Net::Libwebsockets
@@ -718,32 +732,14 @@ MODULE = Net::Libwebsockets     PACKAGE = Net::Libwebsockets::WebSocket::Client
 PROTOTYPES: DISABLE
 
 void
-lws_service_fd_read( SV* lws_context_sv, int fd )
+lws_service_fd_read( UV lws_context_uv, int fd )
     CODE:
-        intptr_t lws_context_int = (intptr_t) SvUV(lws_context_sv);
-
-        struct lws_context *context = (void *) lws_context_int;
-        struct lws_pollfd pollfd = {
-            .fd = fd,
-            .events = POLLIN,
-            .revents = POLLIN,
-        };
-
-        lws_service_fd(context, &pollfd);
+        _lws_service_fd(aTHX_ lws_context_uv, fd, POLLIN);
 
 void
-lws_service_fd_write( SV* lws_context_sv, int fd )
+lws_service_fd_write( UV lws_context_uv, int fd )
     CODE:
-        intptr_t lws_context_int = (intptr_t) SvUV(lws_context_sv);
-
-        struct lws_context *context = (void *) lws_context_int;
-        struct lws_pollfd pollfd = {
-            .fd = fd,
-            .events = POLLOUT,
-            .revents = POLLOUT,
-        };
-
-        lws_service_fd(context, &pollfd);
+        _lws_service_fd(aTHX_ lws_context_uv, fd, POLLOUT);
 
 int
 get_timeout( SV* lws_context_sv )
@@ -768,16 +764,6 @@ _new (SV* hostname, int port, SV* path, SV* headers_ar, int tls_opts, unsigned p
         struct lws_context_creation_info info;
         struct lws_client_connect_info client;
 
-        Zero(&info, 1, struct lws_context_creation_info);
-
-        info.options = (
-            LWS_SERVER_OPTION_DO_SSL_GLOBAL_INIT
-            | LWS_SERVER_OPTION_VALIDATE_UTF8
-        );
-
-        // TODO: make this adjustable
-        info.extensions = default_extensions;
-
         my_perl_context_t* my_perl_context;
         Newxz(my_perl_context, 1, my_perl_context_t); // TODO clean up
         my_perl_context->aTHX = aTHX;
@@ -794,17 +780,26 @@ _new (SV* hostname, int port, SV* path, SV* headers_ar, int tls_opts, unsigned p
         my_perl_context->lws_retry.secs_since_valid_ping = ping_interval;
         my_perl_context->lws_retry.secs_since_valid_hangup = ping_timeout;
 
+        Zero(&info, 1, struct lws_context_creation_info);
+
+        info.options = (
+            LWS_SERVER_OPTION_DO_SSL_GLOBAL_INIT
+            | LWS_SERVER_OPTION_VALIDATE_UTF8
+        );
+
+        // TODO: make this adjustable
+        info.extensions = default_extensions;
+
         info.event_lib_custom = &evlib_custom;
 
-        net_lws_abstract_loop_t* abstract_loop;
-        Newx(abstract_loop, 1, net_lws_abstract_loop_t);
-        abstract_loop->aTHX = aTHX;
-        abstract_loop->perlobj = loop_obj;
+        info.user = (void *) my_perl_context;
+
+        Newx(my_perl_context->abstract_loop, 1, net_lws_abstract_loop_t);
+        my_perl_context->abstract_loop->aTHX = aTHX;
+        my_perl_context->abstract_loop->perlobj = loop_obj;
         SvREFCNT_inc(loop_obj);
 
-        void *foreign_loops[] = { abstract_loop };
-        fprintf(stderr, "abstract loop: %p\n", abstract_loop);
-        info.foreign_loops = foreign_loops;
+        info.foreign_loops = &my_perl_context->abstract_loop;
 
         info.port = CONTEXT_PORT_NO_LISTEN; /* we do not run any server */
 
@@ -861,7 +856,6 @@ _new (SV* hostname, int port, SV* path, SV* headers_ar, int tls_opts, unsigned p
 
         connect_state->perl_context = my_perl_context;
         connect_state->lws_context = context;
-        connect_state->abstract_loop = abstract_loop;
         connect_state->pid = getpid();
 
         RETVAL = _ptr_to_svrv(aTHX_ connect_state, gv_stashpv(WEBSOCKET_CLASS, FALSE));
@@ -880,21 +874,23 @@ DESTROY (SV* self_sv)
         }
 
         if (!connect_state->perl_context->connect_d) {
+            my_perl_context_t* my_perl_context = connect_state->perl_context;
+
             // If we got here, then we’re DESTROYed before the
             // connection was ever made.
 
             lws_context_destroy(connect_state->lws_context);
 
-            SvREFCNT_dec(connect_state->abstract_loop->perlobj);
-            Safefree(connect_state->abstract_loop);
+            SvREFCNT_dec(my_perl_context->connect_d);
 
-            SvREFCNT_dec(connect_state->perl_context->connect_d);
-
-            if (connect_state->perl_context->message_content) {
-                Safefree(connect_state->perl_context->message_content);
+            if (my_perl_context->message_content) {
+                Safefree(my_perl_context->message_content);
             }
 
-            Safefree(connect_state->perl_context);
+            SvREFCNT_dec(my_perl_context->abstract_loop->perlobj);
+            Safefree(my_perl_context->abstract_loop);
+
+            Safefree(my_perl_context);
         }
 
         Safefree(connect_state);
@@ -1060,3 +1056,25 @@ DESTROY (SV* self_sv)
 
         Safefree(courier);
         warn("end courier destroy\n");
+
+# ----------------------------------------------------------------------
+
+MODULE = Net::Libwebsockets     PACKAGE = Net::Libwebsockets::Loop
+
+PROTOTYPES: DISABLE
+
+void
+_xs_pre_destroy (SV* self_sv, SV* context_ptr_sv)
+    CODE:
+        if (SvOK(context_ptr_sv)) {
+            intptr_t lws_context_int = SvUV(context_ptr_sv);
+
+            struct lws_context *context = (void *) lws_context_int;
+
+            my_perl_context_t* my_perl_context = lws_context_user(context);
+
+            if (my_perl_context) {
+                Safefree(my_perl_context->abstract_loop);
+                my_perl_context->abstract_loop = NULL;
+            }
+        }

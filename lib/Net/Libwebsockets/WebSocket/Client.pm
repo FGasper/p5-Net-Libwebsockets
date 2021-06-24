@@ -10,7 +10,13 @@ use Net::Libwebsockets ();
 use Promise::XS ();
 
 my @_REQUIRED = qw( url event );
-my %_KNOWN = map { $_ => 1 } (@_REQUIRED, 'headers', 'tls', 'ping_interval', 'ping_timeout');
+my %_KNOWN = map { $_ => 1 } (
+    @_REQUIRED,
+    'subprotocols',
+    'headers',
+    'tls',
+    'ping_interval', 'ping_timeout',
+);
 
 my %DEFAULT = (
     ping_interval => 30,

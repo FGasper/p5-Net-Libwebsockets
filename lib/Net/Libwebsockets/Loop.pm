@@ -25,6 +25,9 @@ sub set_lws_context {
 sub DESTROY {
     my ($self) = @_;
 
+    $self->_xs_pre_destroy($self->{'lws_context'});
+
+warn "======= destroying $self\n";
     if ($$ == $self->{'pid'} && 'DESTRUCT' eq ${^GLOBAL_PHASE}) {
         warn "Destroying $self at global destruction; possible memory leak!\n";
     }
