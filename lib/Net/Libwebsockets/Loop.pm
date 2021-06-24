@@ -17,7 +17,12 @@ sub set_lws_context {
 
     $self->{'lws_context'} = $ctx;
 
-    $self->start_timer();
+    my $cr = $self->{'context_package'}->can('get_timeout');
+    $self->{'get_timeout_cr'} = sub { $cr->($ctx) };
+
+    #$self->start_timer();
+
+    $self->_do_later( sub { $self->set_timer() } );
 
     return;
 }

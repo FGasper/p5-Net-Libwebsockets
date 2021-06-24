@@ -9,33 +9,25 @@ use parent 'Net::Libwebsockets::Loop';
 
 use AnyEvent ();
 
-use Scalar::Util ();
-
 use Net::Libwebsockets ();
 
-sub start_timer {
-    my ($self) = @_;
-
-    AnyEvent::postpone( sub { $self->set_timer() } );
-}
+*_do_later = *AnyEvent::postpone;
 
 sub set_timer {
     my ($self) = @_;
 
-    my $timeout_ms = $self->{'context_package'}->can('get_timeout')->($self->{'lws_context'});
-
-    print "==== new timeout: $timeout_ms ms\n";
-
-    my $weak_self = $self;
-    Scalar::Util::weaken($weak_self);
+    my $get_timeout_cr = $self->{'get_timeout_cr'} or die 'no get_timeout_cr!';
 
     undef $self->{'timer'};
-    $self->{'timer'} = AnyEvent->timer(
-        after => $timeout_ms / 1000,
-        cb => sub {
-            $weak_self && $weak_self->set_timer();
-        },
-    );
+
+    my $timer_sr = \$self->{'timer'};
+
+    sub {
+        $$timer_sr = AnyEvent->timer(
+            after => $get_timeout_cr->() / 1000,
+            cb => __SUB__,
+        );
+    }->();
 }
 
 sub add_fd {

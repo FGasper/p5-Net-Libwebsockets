@@ -5,8 +5,6 @@ use warnings;
 
 use parent 'Net::Libwebsockets::Loop';
 
-use Scalar::Util;
-
 use lib '/Users/felipe/code/p5-IO-FDSaver/lib';
 use IO::FDSaver;
 
@@ -26,12 +24,8 @@ sub new {
     }, $class;
 }
 
-sub start_timer {
-    my ($self) = @_;
-
-    my $loop = $self->{'loop'};
-
-    $loop->later( sub { $self->set_timer() } );
+sub _do_later {
+    $_[0]->{'loop'}->later( $_[1] );
 
     # return omitted to save an op
 }
@@ -39,23 +33,20 @@ sub start_timer {
 sub set_timer {
     my ($self) = @_;
 
-    my $timeout_ms = $self->{'context_package'}->can('get_timeout')->($self->{'lws_context'});
-
-    print "==== new timeout: $timeout_ms ms\n";
-
-    my $weak_self = $self;
-    Scalar::Util::weaken($weak_self);
+    my $get_timeout_cr = $self->{'get_timeout_cr'} or die 'no get_timeout_cr!';
 
     my $loop = $self->{'loop'};
 
-    $loop->unwatch_time($self->{'timer'}) if $self->{'timer'};
+    my $timer_sr = \$self->{'timer'};
 
-    $self->{'timer'} = $loop->watch_time(
-        after => $timeout_ms / 1000,
-        code => sub {
-            $weak_self && $weak_self->set_timer();
-        },
-    );
+    $loop->unwatch_time($$timer_sr) if $$timer_sr;
+
+    sub {
+        $$timer_sr = $loop->watch_time(
+            after => $get_timeout_cr->() / 1000,
+            code => __SUB__,
+        );
+    }->();
 }
 
 sub add_fd {
