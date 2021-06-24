@@ -776,15 +776,6 @@ get_timeout( SV* lws_context_sv )
     OUTPUT:
         RETVAL
 
-void
-on_timeout( SV* lws_context_sv )
-    CODE:
-        fprintf(stderr, "on timeout\n");
-        intptr_t lws_context_int = (intptr_t) SvUV(lws_context_sv);
-        struct lws_context *context = (void *) lws_context_int;
-
-        lws_service(context, 0);
-
 SV*
 _new (SV* hostname, int port, SV* path, SV* headers_ar, int tls_opts, unsigned ping_interval, unsigned ping_timeout, SV* loop_obj, SV* connected_d)
     CODE:

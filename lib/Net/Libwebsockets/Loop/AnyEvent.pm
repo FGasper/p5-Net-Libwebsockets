@@ -29,11 +29,12 @@ sub start_timer {
 
         $timeout_ms = $get_timeout_cr->($ctx);
 
+        print "==== new timeout: $timeout_ms ms\n";
+
         $$timer_sr = AnyEvent->timer(
             after => $timeout_ms / 1000,
             cb => sub {
                 undef $idle_w;
-                $pkg->can('on_timeout')->($ctx);
                 $st_cr->();
             },
         );

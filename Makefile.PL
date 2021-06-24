@@ -33,6 +33,11 @@ WriteMakefile(
         },
     },
 
+    PREREQ_PM => {
+        'Promise::XS' => 0,
+        'URI::Split' => 0,
+    },
+
     TEST_REQUIRES => {
         'Test::More' => 0,
         'Test::Deep' => 0,
