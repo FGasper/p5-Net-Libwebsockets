@@ -419,7 +419,6 @@ fprintf(stderr, "wsi destroy2\n");
         break;
 
     case LWS_CALLBACK_EVENT_WAIT_CANCELLED:
-warn("cancelled (len=%d)\n", len);
         break;
 
     case LWS_CALLBACK_CLIENT_APPEND_HANDSHAKE_HEADER: {

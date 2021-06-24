@@ -102,4 +102,12 @@ sub remove_fd {
     # return omitted to save an op
 }
 
+sub DESTROY {
+    my ($self) = @_;
+
+    $self->{'timer'} = undef;
+
+    return $self->SUPER::DESTROY();
+}
+
 1;
