@@ -5,6 +5,8 @@ use warnings;
 
 use parent 'Net::Libwebsockets::Loop';
 
+use Scalar::Util;
+
 use lib '/Users/felipe/code/p5-IO-FDSaver/lib';
 use IO::FDSaver;
 
@@ -27,35 +29,33 @@ sub new {
 sub start_timer {
     my ($self) = @_;
 
-    my $ctx = $self->{'lws_context'} or die "need lws_context!";
+    my $loop = $self->{'loop'};
 
-    my $pkg = $self->{'context_package'};
+    $loop->later( sub { $self->set_timer() } );
 
-    my $get_timeout_cr = $pkg->can('get_timeout');
+    # return omitted to save an op
+}
 
-    my $timer_sr = \$self->{'timer'};
+sub set_timer {
+    my ($self) = @_;
 
-    my $timeout_ms;
+    my $timeout_ms = $self->{'context_package'}->can('get_timeout')->($self->{'lws_context'});
+
+    print "==== new timeout: $timeout_ms ms\n";
+
+    my $weak_self = $self;
+    Scalar::Util::weaken($weak_self);
 
     my $loop = $self->{'loop'};
 
-    $loop->later( sub {
-        $timeout_ms = $get_timeout_cr->($ctx);
+    $loop->unwatch_time($self->{'timer'}) if $self->{'timer'};
 
-        print "==== new timeout: $timeout_ms ms\n";
-
-        $loop->unwatch_time($$timer_sr) if $$timer_sr;
-
-        $$timer_sr = $loop->watch_time(
-            after => $timeout_ms / 1000,
-
-            # Per LWS’s custom event loop example, there’s nothing to *do*
-            # on timeout except just start the loop again.
-            code => __SUB__,
-        );
-    } );
-
-    # return omitted to save an op
+    $self->{'timer'} = $loop->watch_time(
+        after => $timeout_ms / 1000,
+        code => sub {
+            $weak_self && $weak_self->set_timer();
+        },
+    );
 }
 
 sub add_fd {
