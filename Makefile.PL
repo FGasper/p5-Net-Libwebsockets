@@ -4,6 +4,10 @@
 my $cflags = q<-I/Users/felipe/code/libwebsockets/build/include>;
 my $lflags = '-L/Users/felipe/code/libwebsockets/build/lib -lwebsockets';
 
+use Devel::PPPort;
+
+Devel::PPPort::WriteFile();
+
 use ExtUtils::MakeMaker;
 # See lib/ExtUtils/MakeMaker.pm for details of how to influence
 # the contents of the Makefile that is written.
@@ -18,6 +22,19 @@ WriteMakefile(
     DEFINE            => '', # e.g., '-DHAVE_SOMETHING'
     INC               => "-Wall -I. --std=c99 $cflags",
     LICENSE           => "perl_5",
+
+    OBJECT => [
+        '$(BASEEXT)$(OBJ_EXT)',
+        'nlws_courier.o',
+        'nlws_frame.o',
+    ],
+
+    CONFIGURE_REQUIRES => {
+
+        # In order to specify OBJECT as an array.
+        'ExtUtils::MakeMaker' => 6.84,
+        'Devel::PPPort' => 0,
+    },
 
     META_MERGE => {
         'meta-spec' => { version => 2 },

@@ -14,29 +14,9 @@
 
 #define DEBUG 1
 
-#define DEFAULT_POLL_TIMEOUT (5 * 60 * 1000)
-
-#define WEBSOCKET_CLASS "Net::Libwebsockets::WebSocket::Client"
-#define COURIER_CLASS "Net::Libwebsockets::WebSocket::Courier"
-#define PAUSE_CLASS "Net::Libwebsockets::WebSocket::Pause"
-
-#define NET_LWS_LOCAL_PROTOCOL_NAME "lws-net-libwebsockets"
-
-#ifdef PL_phase
-#   define IS_GLOBAL_DESTRUCTION (PL_phase == PERL_PHASE_DESTRUCT)
-#else
-#   define IS_GLOBAL_DESTRUCTION PL_dirty
-#endif
-
-#define UNUSED(x) (void)(x)
-
-#define RING_DEPTH 1024
-
-typedef struct {
-    U8 *pre_plus_payload;
-    size_t len;
-    enum lws_write_protocol flags;
-} frame_t;
+#include "nlws.h"
+#include "nlws_frame.h"
+#include "nlws_courier.h"
 
 typedef struct {
     SV* courier_sv;
@@ -54,33 +34,6 @@ typedef struct {
 
     struct lws_context* lws_context;
 } net_lws_abstract_loop_t;
-
-typedef struct {
-    struct lws *wsi;
-    struct lws_context* lws_context;
-
-    unsigned on_text_count;
-    SV** on_text;
-
-    unsigned on_binary_count;
-    SV** on_binary;
-
-    SV* done_d;
-
-    struct lws_ring *ring;
-    unsigned consume_pending_count;
-
-    unsigned pauses;
-
-    pid_t pid;
-
-    bool            close_yn;
-    uint16_t        close_status;
-    unsigned char   close_reason[123];
-    STRLEN          close_reason_length;
-} courier_t;
-
-#define MAX_CLOSE_REASON_LENGTH (sizeof(courier->close_status))
 
 typedef struct {
     tTHX aTHX;
@@ -262,73 +215,6 @@ warn("promise is connect_d\n");
     finish_deferred_sv( aTHX_ deferred_svp, "reject", newSVpvn(reason, reasonlen) );
 }
 
-SV* _new_deferred_sv(pTHX) {
-    dSP;
-
-    ENTER;
-    SAVETMPS;
-
-    PUSHMARK(SP);
-
-    int count = call_pv("Promise::XS::deferred", G_SCALAR);
-
-    if (count != 1) croak("deferred() returned %d things?!?", count);
-
-    SPAGAIN;
-
-    SV* deferred_sv = POPs;
-    SvREFCNT_inc(deferred_sv);
-
-    FREETMPS;
-    LEAVE;
-
-    assert(SvREFCNT(deferred_sv) == 1);
-
-    return deferred_sv;
-}
-
-static void
-_destroy_frame (void *_frame) {
-    frame_t *frame_p = _frame;
-
-    Safefree(frame_p->pre_plus_payload);
-}
-
-courier_t* _new_courier(pTHX_ struct lws *wsi, struct lws_context *context) {
-    courier_t* courier;
-    Newx(courier, 1, courier_t);
-
-    courier->wsi = wsi;
-    courier->lws_context = context;
-
-    courier->on_text_count = 0;
-    courier->on_text = NULL;
-    courier->on_binary_count = 0;
-    courier->on_binary = NULL;
-    courier->close_yn = false;
-
-    courier->pid = getpid();
-
-    courier->ring = lws_ring_create(sizeof(frame_t), RING_DEPTH, _destroy_frame);
-    courier->consume_pending_count = 0;
-
-    courier->pauses = 0;
-
-    if (!courier->ring) {
-        Safefree(courier);
-        croak("lws_ring_create() failed!");
-    }
-
-    courier->done_d = _new_deferred_sv(aTHX);
-
-    return courier;
-/*
-    return sv_2mortal(
-        _ptr_to_svrv(aTHX_ courier, gv_stashpv(COURIER_CLASS, FALSE))
-    );
-*/
-}
-
 void _on_ws_message(pTHX_ my_perl_context_t* my_perl_context, SV* msgsv) {
     courier_t* courier = my_perl_context->courier;
 
@@ -434,7 +320,7 @@ fprintf(stderr, "wsi destroy2\n");
         } break;
 
     case LWS_CALLBACK_CLIENT_ESTABLISHED: {
-        courier_t* courier = _new_courier(aTHX, wsi, my_perl_context->lws_context);
+        courier_t* courier = nlws_create_courier(aTHX, wsi, my_perl_context->lws_context);
 
         my_perl_context->courier = courier;
 
@@ -678,7 +564,7 @@ void _courier_sv_send( pTHX_ courier_t* courier, U8* buf, STRLEN len, enum lws_w
     Copy(buf, LWS_PRE + frame.pre_plus_payload, len, U8);
 
     if (!lws_ring_insert( courier->ring, &frame, 1 )) {
-        _destroy_frame(&frame);
+        nlws_destroy_frame(&frame);
 
         size_t count = lws_ring_get_count_free_elements(courier->ring);
 
@@ -807,7 +693,7 @@ _new (SV* hostname, int port, SV* path, SV* subprotocols_sv, SV* headers_ar, int
 
         const struct lws_protocols protocols[] = {
             {
-                .name = "net-libwebsockets",
+                .name = NET_LWS_LOCAL_PROTOCOL_NAME,
                 .callback = net_lws_callback,
                 .per_session_data_size = sizeof(void*),
                 .rx_buffer_size = 0,
@@ -1014,7 +900,7 @@ close (SV* self_sv, U16 code=LWS_CLOSE_STATUS_NOSTATUS, SV* reason_sv=NULL)
             U8* reason = (U8*) SvPVutf8(reason_sv, courier->close_reason_length);
 
             if (courier->close_reason_length > MAX_CLOSE_REASON_LENGTH) {
-                warn("Truncating %zu-byte close reason (%.*s) to %zu bytes …", courier->close_reason_length, (int) courier->close_reason_length, reason, MAX_CLOSE_REASON_LENGTH);
+                warn("Truncating %zu-byte close reason (%.*s) to %d bytes …", courier->close_reason_length, (int) courier->close_reason_length, reason, MAX_CLOSE_REASON_LENGTH);
                 courier->close_reason_length = MAX_CLOSE_REASON_LENGTH;
             }
 
@@ -1037,28 +923,7 @@ DESTROY (SV* self_sv)
             warn("Destroying %" SVf " at global destruction!\n", self_sv);
         }
 
-        if (courier->on_text) {
-            for (unsigned i=0; i<courier->on_text_count; i++) {
-                SvREFCNT_dec(courier->on_text[i]);
-            }
-
-            Safefree(courier->on_text);
-        }
-
-        if (courier->on_binary) {
-            for (unsigned i=0; i<courier->on_binary_count; i++) {
-                SvREFCNT_dec(courier->on_binary[i]);
-            }
-
-            Safefree(courier->on_binary);
-        }
-
-        if (courier->done_d) SvREFCNT_dec(courier->done_d);
-
-        lws_ring_destroy(courier->ring);
-
-        Safefree(courier);
-        warn("end courier destroy\n");
+        nlws_destroy_courier(aTHX_ courier);
 
 # ----------------------------------------------------------------------
 
