@@ -28,6 +28,8 @@
 #   define IS_GLOBAL_DESTRUCTION PL_dirty
 #endif
 
+#define UNUSED(x) (void)(x)
+
 #define RING_DEPTH 1024
 
 typedef struct {
@@ -376,11 +378,6 @@ net_lws_callback(
 
     switch (reason) {
 
-    case LWS_CALLBACK_PROTOCOL_INIT:
-fprintf(stderr, "protocol init\n");
-        // ?
-        break;
-
     case LWS_CALLBACK_WSI_DESTROY:
 fprintf(stderr, "wsi destroy\n");
         if (my_perl_context->courier_sv) {
@@ -394,9 +391,6 @@ fprintf(stderr, "wsi destroy\n");
         }
 fprintf(stderr, "wsi destroy2\n");
 
-        break;
-
-    case LWS_CALLBACK_EVENT_WAIT_CANCELLED:
         break;
 
     case LWS_CALLBACK_CLIENT_APPEND_HANDSHAKE_HEADER: {
@@ -509,7 +503,6 @@ warn("writable: we started close\n");
         } break;
 
     case LWS_CALLBACK_CLIENT_CONNECTION_ERROR:
-warn("connection error: [%.*s]\n", len, in);
         _on_ws_error(aTHX_ my_perl_context, len, in);
         break;
 
@@ -606,44 +599,46 @@ static void
 custom_io (struct lws *wsi, unsigned int flags) {
     net_lws_abstract_loop_t* myloop_p = (net_lws_abstract_loop_t*) lws_evlib_wsi_to_evlib_pt(wsi);
 
-    pTHX = myloop_p->aTHX;
-
     int fd = lws_get_socket_fd(wsi);
 
-    SV* myloop_sv = myloop_p->perlobj;
+    if (-1 != fd) {
+        pTHX = myloop_p->aTHX;
 
-    char *method_name;
+        SV* myloop_sv = myloop_p->perlobj;
 
-    if (flags & LWS_EV_START) {
-        method_name = "add_to_fd";
+        char *method_name;
+
+        if (flags & LWS_EV_START) {
+            method_name = "add_to_fd";
+        }
+        else {
+            method_name = "remove_from_fd";
+        }
+
+        SV* args[] = {
+            sv_2mortal(newSViv(fd)),
+            sv_2mortal(newSVuv(flags)),
+        };
+
+        _call_object_method(aTHX_ myloop_sv, method_name, 2, args );
     }
-    else {
-        method_name = "remove_from_fd";
-    }
-
-    SV* args[] = {
-        sv_2mortal(newSViv(fd)),
-        sv_2mortal(newSVuv(flags)),
-    };
-
-    _call_object_method(aTHX_ myloop_sv, method_name, 2, args );
 }
 
 static int
 custom_io_close (struct lws *wsi) {
-fprintf(stderr, "custom_io_close\n");
     net_lws_abstract_loop_t* myloop_p = (net_lws_abstract_loop_t*) lws_evlib_wsi_to_evlib_pt(wsi);
 
-    pTHX = myloop_p->aTHX;
-
     int fd = lws_get_socket_fd(wsi);
-fprintf(stderr, "closing fd %d\n", fd);
 
-    SV* myloop_sv = myloop_p->perlobj;
+    if (-1 != fd) {
+        pTHX = myloop_p->aTHX;
 
-    SV* args[] = { sv_2mortal(newSViv(fd)) };
+        SV* myloop_sv = myloop_p->perlobj;
 
-    _call_object_method(aTHX_ myloop_sv, "remove_fd", 1, args);
+        SV* args[] = { sv_2mortal(newSViv(fd)) };
+
+        _call_object_method(aTHX_ myloop_sv, "remove_fd", 1, args);
+    }
 
     return 0;
 }
@@ -757,12 +752,16 @@ get_timeout( SV* lws_context_sv )
         RETVAL
 
 SV*
-_new (SV* hostname, int port, SV* path, SV* headers_ar, int tls_opts, unsigned ping_interval, unsigned ping_timeout, SV* loop_obj, SV* connected_d)
+_new (SV* hostname, int port, SV* path, SV* subprotocols_sv, SV* headers_ar, int tls_opts, unsigned ping_interval, unsigned ping_timeout, SV* loop_obj, SV* connected_d)
     CODE:
-        lws_set_log_level( LLL_USER | LLL_ERR | LLL_WARN | LLL_NOTICE | LLL_DEBUG | LLL_PARSER | LLL_HEADER | LLL_INFO, NULL );
+        //lws_set_log_level( LLL_USER | LLL_ERR | LLL_WARN | LLL_NOTICE | LLL_DEBUG | LLL_PARSER | LLL_HEADER | LLL_INFO, NULL );
+        lws_set_log_level( LLL_USER | LLL_ERR | LLL_WARN | LLL_NOTICE | LLL_PARSER | LLL_HEADER | LLL_INFO, NULL );
 
         struct lws_context_creation_info info;
+        Zero(&info, 1, struct lws_context_creation_info);
+
         struct lws_client_connect_info client;
+        Zero(&client, 1, struct lws_client_connect_info);
 
         my_perl_context_t* my_perl_context;
         Newxz(my_perl_context, 1, my_perl_context_t); // TODO clean up
@@ -777,10 +776,11 @@ _new (SV* hostname, int port, SV* path, SV* headers_ar, int tls_opts, unsigned p
         my_perl_context->courier = NULL;
         my_perl_context->courier_sv = NULL;
 
+        my_perl_context->lws_retry.retry_ms_table_count = 0;
+        my_perl_context->lws_retry.conceal_count = 0;
         my_perl_context->lws_retry.secs_since_valid_ping = ping_interval;
         my_perl_context->lws_retry.secs_since_valid_hangup = ping_timeout;
 
-        Zero(&info, 1, struct lws_context_creation_info);
 
         info.options = (
             LWS_SERVER_OPTION_DO_SSL_GLOBAL_INIT
@@ -799,7 +799,9 @@ _new (SV* hostname, int port, SV* path, SV* headers_ar, int tls_opts, unsigned p
         my_perl_context->abstract_loop->perlobj = loop_obj;
         SvREFCNT_inc(loop_obj);
 
-        info.foreign_loops = &my_perl_context->abstract_loop;
+        info.foreign_loops = (void *[]) {
+            my_perl_context->abstract_loop,
+        };
 
         info.port = CONTEXT_PORT_NO_LISTEN; /* we do not run any server */
 
@@ -826,8 +828,6 @@ _new (SV* hostname, int port, SV* path, SV* headers_ar, int tls_opts, unsigned p
         SV* set_ctx_args[] = { sv_2mortal( newSVuv((intptr_t) context) ) };
         _call_object_method(aTHX_ loop_obj, "set_lws_context", 1, set_ctx_args);
 
-        memset(&client, 0, sizeof client);
-
         const char* hostname_str = SvPVbyte_nolen(hostname);
 
         client.context = context;
@@ -838,11 +838,14 @@ _new (SV* hostname, int port, SV* path, SV* headers_ar, int tls_opts, unsigned p
         client.origin = hostname_str;
         client.ssl_connection = tls_opts;
         client.retry_and_idle_policy = &my_perl_context->lws_retry;
-        //client.local_protocol_name = NET_LWS_LOCAL_PROTOCOL_NAME;
         client.local_protocol_name = protocols[0].name;
 
         // The callback’s `user`:
         client.userdata = my_perl_context;
+
+        if (SvOK(subprotocols_sv)) {
+            client.protocol = SvPVbyte_nolen(subprotocols_sv);
+        }
 
         if (!lws_client_connect_via_info(&client)) {
             lws_context_destroy(context);
@@ -1066,6 +1069,8 @@ PROTOTYPES: DISABLE
 void
 _xs_pre_destroy (SV* self_sv, SV* context_ptr_sv)
     CODE:
+        UNUSED(self_sv);
+
         if (SvOK(context_ptr_sv)) {
             intptr_t lws_context_int = SvUV(context_ptr_sv);
 

@@ -11,7 +11,10 @@ use AnyEvent ();
 
 use Net::Libwebsockets ();
 
-*_do_later = *AnyEvent::postpone;
+sub _do_later {
+    shift;
+    &AnyEvent::postpone;
+};
 
 sub set_timer {
     my ($self) = @_;

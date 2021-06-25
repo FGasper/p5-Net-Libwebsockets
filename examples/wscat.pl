@@ -8,6 +8,10 @@ use experimental 'signatures';
 use AnyEvent;
 use AnyEvent::Handle;
 
+use Promise::XS;
+
+$Promise::XS::DETECT_MEMORY_LEAKS = 1;
+
 #use IO::Async::Loop;
 #use IO::Async::Stream;
 

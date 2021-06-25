@@ -23,6 +23,23 @@ my %DEFAULT = (
     ping_timeout => 299,
 );
 
+sub _validate_subprotocol {
+    my $str = shift;
+
+    if (!length $str) {
+        Carp::croak "Subprotocol must be nonempty";
+    }
+
+    my $valid_yn = ($str !~ tr<\x21-\x7e><>c);
+    $valid_yn = ($str !~ tr|()<>@,;:\\"/[]?={}||);
+
+    if (!$valid_yn) {
+        Carp::croak "“$str” is not a valid WebSocket subprotocol name";
+    }
+
+    return;
+}
+
 sub connect {
     my (%opts) = @_;
 
@@ -35,7 +52,11 @@ sub connect {
     # Tolerate ancient perls that lack “//=”:
     !defined($opts{$_}) && ($opts{$_} = $DEFAULT{$_}) for keys %DEFAULT;
 
-    my ($url, $event, $tls_opt, $headers) = @opts{'url', 'event', 'tls', 'headers'};
+    my ($url, $event, $tls_opt, $headers, $subprotocols) = @opts{'url', 'event', 'tls', 'headers', 'subprotocols'};
+
+    if ($subprotocols) {
+        _validate_subprotocol($_) for @$subprotocols;
+    }
 
     _validate_uint($_ => $opts{$_}) for sort keys %DEFAULT;
 
@@ -88,6 +109,7 @@ sub connect {
 
     my $wsc = _new(
         $hostname, $port, $path,
+        $subprotocols ? join(', ', $subprotocols) : undef,
         \@headers_copy,
         $tls_flags,
         @opts{'ping_interval', 'ping_timeout'},
