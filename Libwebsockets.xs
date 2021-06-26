@@ -65,93 +65,8 @@ typedef struct {
     pid_t pid;
 } connect_state_t;
 
-static void _call_sv_trap(pTHX_ SV* cbref, SV** mortal_args, unsigned argslen) {
-    dSP;
-
-    ENTER;
-    SAVETMPS;
-
-    PUSHMARK(SP);
-    EXTEND(SP, argslen);
-
-    for (unsigned i=0; i<argslen; i++) {
-        PUSHs(mortal_args[i]);
-    }
-
-    PUTBACK;
-
-    call_sv(cbref, G_VOID|G_DISCARD|G_EVAL);
-
-    SV* err = ERRSV;
-
-    if (err && SvTRUE(err)) {
-        warn("Callback error: %" SVf, err);
-    }
-
-    FREETMPS;
-    LEAVE;
-}
-
-void _call_object_method (pTHX_ SV* object, const char* methname, unsigned argscount, SV** mortal_args) {
-    dSP;
-
-    ENTER;
-    SAVETMPS;
-
-    PUSHMARK(SP);
-
-    EXTEND(SP, 1 + argscount);
-
-    PUSHs( sv_mortalcopy(object) );
-
-    unsigned i=0;
-    for (; i<argscount; i++) PUSHs( mortal_args[i] );
-
-    PUTBACK;
-
-    call_method( methname, G_DISCARD | G_VOID );
-
-    FREETMPS;
-    LEAVE;
-}
-
-SV* _call_object_method_scalar (pTHX_ SV* object, const char* methname, unsigned argscount, SV** mortal_args) {
-    dSP;
-
-    ENTER;
-    SAVETMPS;
-
-    PUSHMARK(SP);
-
-    EXTEND(SP, 1 + argscount);
-
-    mPUSHs( newSVsv(object) );
-
-    unsigned i=0;
-    for (; i<argscount; i++) PUSHs( newSVsv(mortal_args[i]) );
-
-    PUTBACK;
-
-    int count = call_method( methname, G_SCALAR );
-
-    SV* ret;
-
-    if (count > 0) {
-        ret = POPs;
-        SvREFCNT_inc(ret);
-    }
-    else {
-        ret = &PL_sv_undef;
-    }
-
-    FREETMPS;
-    LEAVE;
-
-    return ret;
-}
-
 static inline void _finish_deferred_sv (pTHX_ SV** deferred_svp, const char* methname, SV* payload) {
-    warn("====== finishing deferred\n");
+warn("finishing deferred (payload=%p)\n", payload);
 
     if (!*deferred_svp) croak("Can’t %s(); already finished!", methname);
 
@@ -164,12 +79,12 @@ static inline void _finish_deferred_sv (pTHX_ SV** deferred_svp, const char* met
     *deferred_svp = NULL;
 
     if (payload) {
-        SV* args[] = { sv_2mortal(payload) };
+        SV* args[] = { payload, NULL };
 
-        _call_object_method( aTHX_ deferred_sv, methname, 1, args );
+        xsh_call_object_method_void( aTHX_ deferred_sv, methname, args );
     }
     else {
-        _call_object_method( aTHX_ deferred_sv, methname, 0, NULL );
+        xsh_call_object_method_void( aTHX_ deferred_sv, methname, NULL );
     }
 
     SvREFCNT_dec(deferred_sv);
@@ -177,6 +92,7 @@ static inline void _finish_deferred_sv (pTHX_ SV** deferred_svp, const char* met
 }
 
 void _on_ws_close (pTHX_ my_perl_context_t* my_perl_context, uint16_t code, size_t reasonlen, const char* reason) {
+fprintf(stderr, "%s\n", __func__);
 
     AV* code_reason = av_make(
         2,
@@ -210,8 +126,6 @@ warn("promise is connect_d\n");
 void _on_ws_message(pTHX_ my_perl_context_t* my_perl_context, SV* msgsv) {
     courier_t* courier = my_perl_context->courier;
 
-    sv_2mortal(msgsv);
-
     // Because of the assert() below this initialization isn’t needed,
     // but some compilers aren’t smart enough to realize that.
     unsigned cbcount = 0;
@@ -233,11 +147,11 @@ void _on_ws_message(pTHX_ my_perl_context_t* my_perl_context, SV* msgsv) {
             assert(0);
     }
 
-    SV* thisarg;
+    SV* cbargs[] = { NULL, NULL };
 
     for (unsigned c=0; c<cbcount; c++) {
-        thisarg = (c == cbcount-1) ? msgsv : sv_mortalcopy(msgsv);
-        _call_sv_trap(aTHX_ cbs[c], &thisarg, 1);
+        cbargs[0] = (c == cbcount-1) ? msgsv : newSVsv(msgsv);
+        xsh_call_sv_trap_void(aTHX_ cbs[c], cbargs, "Callback error: ");
     }
 }
 
@@ -428,6 +342,7 @@ warn("writable: we started close\n");
         courier_t* courier = my_perl_context->courier;
 
         if (courier->close_yn) {
+warn("client closed cuz us (courier=%p)\n", courier->done_d);
             _finish_deferred_sv( aTHX_ &courier->done_d, "resolve", NULL );
         }
         else {
@@ -487,7 +402,7 @@ static inline void _lws_service_fd (pTHX_ UV lws_context_uv, int fd, short event
 
     if (my_perl_context && my_perl_context->abstract_loop) {
         SV* loop_sv = my_perl_context->abstract_loop->perlobj;
-        _call_object_method(aTHX_ loop_sv, "set_timer", 0, NULL);
+        xsh_call_object_method_void(aTHX_ loop_sv, "set_timer", NULL);
     }
 }
 
@@ -737,7 +652,7 @@ done_p (SV* self_sv)
     CODE:
         courier_t* courier = xsh_svrv_to_ptr(aTHX_ self_sv);
 
-        RETVAL = _call_object_method_scalar(aTHX_ courier->done_d, "promise", 0, NULL);
+        RETVAL = xsh_call_object_method_scalar(aTHX_ courier->done_d, "promise", NULL);
 
     OUTPUT:
         RETVAL
