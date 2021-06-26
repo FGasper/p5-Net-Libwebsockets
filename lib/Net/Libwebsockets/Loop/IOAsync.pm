@@ -51,6 +51,7 @@ sub set_timer {
 
 sub add_fd {
     my ($self, $fd) = @_;
+print "add_fd: $self, $fd\n";
 
     my $fh = ($self->{'io_fdsaver'} ||= IO::FDSaver->new())->get_fh($fd);
 

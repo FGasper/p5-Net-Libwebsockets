@@ -17,6 +17,7 @@
 #include "nlws.h"
 #include "nlws_frame.h"
 #include "nlws_courier.h"
+#include "nlws_perl_loop.h"
 
 typedef struct {
     SV* courier_sv;
@@ -26,14 +27,6 @@ typedef enum {
     NET_LWS_MESSAGE_TYPE_TEXT,
     NET_LWS_MESSAGE_TYPE_BINARY,
 } message_type_t;
-
-typedef struct {
-    tTHX aTHX;
-
-    SV* perlobj;
-
-    struct lws_context* lws_context;
-} net_lws_abstract_loop_t;
 
 typedef struct {
     tTHX aTHX;
@@ -167,21 +160,30 @@ SV* _call_object_method_scalar (pTHX_ SV* object, const char* methname, unsigned
     return ret;
 }
 
-void finish_deferred_sv (pTHX_ SV** deferred_svp, const char* methname, SV* payload) {
+static inline void _finish_deferred_sv (pTHX_ SV** deferred_svp, const char* methname, SV* payload) {
+    warn("====== finishing deferred\n");
+
     if (!*deferred_svp) croak("Can’t %s(); already finished!", methname);
+
+    SV* deferred_sv = *deferred_svp;
+
+    // The deferred’s callbacks might execute synchronously and also
+    // might depend on the referent pointer being NULL as an indicator
+    // that the deferred was already finished.
+    //
+    *deferred_svp = NULL;
 
     if (payload) {
         SV* args[] = { sv_2mortal(payload) };
 
-        _call_object_method( aTHX_ *deferred_svp, methname, 1, args );
+        _call_object_method( aTHX_ deferred_sv, methname, 1, args );
     }
     else {
-        _call_object_method( aTHX_ *deferred_svp, methname, 0, NULL );
+        _call_object_method( aTHX_ deferred_sv, methname, 0, NULL );
     }
 
-    SvREFCNT_dec(*deferred_svp);
+    SvREFCNT_dec(deferred_sv);
 
-    *deferred_svp = NULL;
 }
 
 void _on_ws_close (pTHX_ my_perl_context_t* my_perl_context, uint16_t code, size_t reasonlen, const char* reason) {
@@ -196,7 +198,7 @@ void _on_ws_close (pTHX_ my_perl_context_t* my_perl_context, uint16_t code, size
 
     SV* arg = newRV_noinc((SV*) code_reason);
 
-    finish_deferred_sv( aTHX_ &my_perl_context->courier->done_d, "resolve", arg );
+    _finish_deferred_sv( aTHX_ &my_perl_context->courier->done_d, "resolve", arg );
 }
 
 void _on_ws_error (pTHX_ my_perl_context_t* my_perl_context, size_t reasonlen, const char* reason) {
@@ -212,7 +214,7 @@ warn("promise is connect_d\n");
         deferred_svp = &my_perl_context->connect_d;
     }
 
-    finish_deferred_sv( aTHX_ deferred_svp, "reject", newSVpvn(reason, reasonlen) );
+    _finish_deferred_sv( aTHX_ deferred_svp, "reject", newSVpvn(reason, reasonlen) );
 }
 
 void _on_ws_message(pTHX_ my_perl_context_t* my_perl_context, SV* msgsv) {
@@ -327,7 +329,7 @@ fprintf(stderr, "wsi destroy2\n");
         SV* courier_sv = _ptr_to_svrv(aTHX_ courier, gv_stashpv(COURIER_CLASS, FALSE));
         my_perl_context->courier_sv = courier_sv;
 
-        finish_deferred_sv( aTHX_ &my_perl_context->connect_d, "resolve", newSVsv(courier_sv) );
+        _finish_deferred_sv( aTHX_ &my_perl_context->connect_d, "resolve", newSVsv(courier_sv) );
 
         } break;
 
@@ -436,7 +438,7 @@ warn("writable: we started close\n");
         courier_t* courier = my_perl_context->courier;
 
         if (courier->close_yn) {
-            finish_deferred_sv( aTHX_ &courier->done_d, "resolve", NULL );
+            _finish_deferred_sv( aTHX_ &courier->done_d, "resolve", NULL );
         }
         else {
             warn("LWS_CALLBACK_CLIENT_CLOSED but we didn’t close … is this OK?");
@@ -449,108 +451,12 @@ warn("other callback (%d)\n", reason);
         break;
     }
 
-    //return lws_callback_http_dummy(wsi, reason, user, in, len);
     return 0;
 }
 
-static int
-init_pt_custom (struct lws_context *cx, void *_loop, int tsi) {
-    net_lws_abstract_loop_t* myloop_p = lws_evlib_tsi_to_evlib_pt(cx, tsi);
 
-    net_lws_abstract_loop_t *sourceloop_p = (net_lws_abstract_loop_t *) _loop;
 
-    memcpy(myloop_p, sourceloop_p, sizeof(net_lws_abstract_loop_t));
 
-    return 0;
-}
-
-static int
-custom_io_accept (struct lws *wsi) {
-    net_lws_abstract_loop_t* myloop_p = (net_lws_abstract_loop_t*) lws_evlib_wsi_to_evlib_pt(wsi);
-
-    pTHX = myloop_p->aTHX;
-
-    int fd = lws_get_socket_fd(wsi);
-
-    SV* myloop_sv = myloop_p->perlobj;
-
-    SV* args[] = { sv_2mortal(newSViv(fd)) };
-
-    _call_object_method(aTHX_ myloop_sv, "add_fd", 1, args);
-
-    return 0;
-}
-
-static void
-custom_io (struct lws *wsi, unsigned int flags) {
-    net_lws_abstract_loop_t* myloop_p = (net_lws_abstract_loop_t*) lws_evlib_wsi_to_evlib_pt(wsi);
-
-    int fd = lws_get_socket_fd(wsi);
-
-    if (-1 != fd) {
-        pTHX = myloop_p->aTHX;
-
-        SV* myloop_sv = myloop_p->perlobj;
-
-        char *method_name;
-
-        if (flags & LWS_EV_START) {
-            method_name = "add_to_fd";
-        }
-        else {
-            method_name = "remove_from_fd";
-        }
-
-        SV* args[] = {
-            sv_2mortal(newSViv(fd)),
-            sv_2mortal(newSVuv(flags)),
-        };
-
-        _call_object_method(aTHX_ myloop_sv, method_name, 2, args );
-    }
-}
-
-static int
-custom_io_close (struct lws *wsi) {
-    net_lws_abstract_loop_t* myloop_p = (net_lws_abstract_loop_t*) lws_evlib_wsi_to_evlib_pt(wsi);
-
-    int fd = lws_get_socket_fd(wsi);
-
-    if (-1 != fd) {
-        pTHX = myloop_p->aTHX;
-
-        SV* myloop_sv = myloop_p->perlobj;
-
-        SV* args[] = { sv_2mortal(newSViv(fd)) };
-
-        _call_object_method(aTHX_ myloop_sv, "remove_fd", 1, args);
-    }
-
-    return 0;
-}
-
-const struct lws_event_loop_ops event_loop_ops_custom = {
-    .name                   = "net-lws-custom-loop",
-
-    .init_pt                = init_pt_custom,
-    .init_vhost_listen_wsi  = custom_io_accept,
-    .sock_accept            = custom_io_accept,
-    .io                     = custom_io,
-    .wsi_logical_close      = custom_io_close,
-
-    .evlib_size_pt          = sizeof(net_lws_abstract_loop_t),
-};
-
-const lws_plugin_evlib_t evlib_custom = {
-    .hdr = {
-        "custom perl loop",
-        "net_lws_plugin",
-        LWS_BUILD_HASH,
-        LWS_PLUGIN_API_MAGIC,
-    },
-
-    .ops = &event_loop_ops_custom,
-};
 
 void _courier_sv_send( pTHX_ courier_t* courier, U8* buf, STRLEN len, enum lws_write_protocol protocol ) {
 
@@ -762,11 +668,12 @@ DESTROY (SV* self_sv)
             warn("Destroying %" SVf " at global destruction!\n", self_sv);
         }
 
-        if (!connect_state->perl_context->connect_d) {
-            my_perl_context_t* my_perl_context = connect_state->perl_context;
+        if (connect_state->perl_context->connect_d) {
 
             // If we got here, then we’re DESTROYed before the
             // connection was ever made.
+
+            my_perl_context_t* my_perl_context = connect_state->perl_context;
 
             lws_context_destroy(connect_state->lws_context);
 
