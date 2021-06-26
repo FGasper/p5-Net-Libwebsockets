@@ -1,4 +1,5 @@
 #include "nlws_perl_loop.h"
+#include "xshelper/xshelper.h"
 
 static int
 init_pt_custom (struct lws_context *cx, void *_loop, int tsi) {
@@ -6,7 +7,16 @@ init_pt_custom (struct lws_context *cx, void *_loop, int tsi) {
 
     net_lws_abstract_loop_t *sourceloop_p = _loop;
 
-    memcpy(myloop_p, sourceloop_p, sizeof(net_lws_abstract_loop_t));
+    pTHX = sourceloop_p->aTHX;
+
+    SV* methargs[] = {
+        newSVuv( (UV) cx ),
+        NULL,
+    };
+
+    xsh_call_object_method_void( aTHX_ sourceloop_p->perlobj, "set_lws_context", methargs );
+
+    StructCopy(sourceloop_p, myloop_p, net_lws_abstract_loop_t);
 
     return 0;
 }

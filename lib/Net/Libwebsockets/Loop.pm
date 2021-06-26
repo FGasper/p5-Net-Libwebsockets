@@ -4,11 +4,10 @@ use strict;
 use warnings;
 
 sub new {
-    my ($class, $ctx_pkg) = @_;
+    my ($class) = @_;
 
     return bless {
         pid => $$,
-        context_package => $ctx_pkg,
     }, $class;
 }
 
@@ -17,8 +16,7 @@ sub set_lws_context {
 
     $self->{'lws_context'} = $ctx;
 
-    my $cr = $self->{'context_package'}->can('get_timeout');
-    $self->{'get_timeout_cr'} = sub { $cr->($ctx) };
+    print "======= did set context: $ctx\n";
 
     #$self->start_timer();
 

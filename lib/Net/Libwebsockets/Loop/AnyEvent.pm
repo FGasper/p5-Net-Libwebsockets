@@ -19,18 +19,17 @@ sub _do_later {
 sub set_timer {
     my ($self) = @_;
 
-    my $get_timeout_cr = $self->{'get_timeout_cr'} or die 'no get_timeout_cr!';
+    ($self->{'_set_timer_cr'} ||= do {
+        my $ctx = $self->{'lws_context'} or die "No lws_context!";
+        my $timer_sr = \$self->{'timer'};
 
-    undef $self->{'timer'};
-
-    my $timer_sr = \$self->{'timer'};
-
-    sub {
-        $$timer_sr = AnyEvent->timer(
-            after => $get_timeout_cr->() / 1000,
-            cb => __SUB__,
-        );
-    }->();
+        sub {
+            $$timer_sr = AnyEvent->timer(
+                after => Net::Libwebsockets::get_timeout($ctx) / 1000,
+                cb => __SUB__,
+            );
+        };
+    })->();
 }
 
 sub add_fd {
@@ -42,17 +41,14 @@ sub add_fd {
 sub add_to_fd {
     my ($self, $fd, $flags) = @_;
 
-    my $ctx_sr = \$self->{'lws_context'};
-
-    my $on_readable_cr = $self->{'context_package'}->can('lws_service_fd_read');
-    my $on_writable_cr = $self->{'context_package'}->can('lws_service_fd_write');
+    my $ctx = $self->{'lws_context'} or die "No lws_context!";
 
     if ($flags & Net::Libwebsockets::LWS_EV_READ) {
         $self->{$fd}[0] = AnyEvent->io(
             fh => $fd,
             poll => 'r',
             cb => sub {
-                $on_readable_cr->($$ctx_sr, $fd);
+                Net::Libwebsockets::lws_service_fd_read($ctx, $fd);
             },
         );
     }
@@ -62,7 +58,7 @@ sub add_to_fd {
             fh => $fd,
             poll => 'w',
             cb => sub {
-                $on_writable_cr->($$ctx_sr, $fd);
+                Net::Libwebsockets::lws_service_fd_write($ctx, $fd);
             },
         );
     }
@@ -74,15 +70,17 @@ sub remove_from_fd {
     my ($self, $fd, $flags) = @_;
 
     if ($flags & Net::Libwebsockets::LWS_EV_READ) {
-        delete $self->{$fd}[0] or do {
-            warn "LWS asked to drop nonexistent reader for FD $fd\n";
-        };
+        delete $self->{$fd}[0];
+#        delete $self->{$fd}[0] or do {
+#            warn "LWS asked to drop nonexistent reader for FD $fd\n";
+#        };
     }
 
     if ($flags & Net::Libwebsockets::LWS_EV_WRITE) {
-        delete $self->{$fd}[1] or do {
-            warn "LWS asked to drop nonexistent writer for FD $fd\n";
-        };
+        delete $self->{$fd}[1];
+#        delete $self->{$fd}[1] or do {
+#            warn "LWS asked to drop nonexistent writer for FD $fd\n";
+#        };
     }
 
     # return omitted to save an op

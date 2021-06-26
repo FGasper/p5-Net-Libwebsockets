@@ -33,37 +33,35 @@ sub _do_later {
 sub set_timer {
     my ($self) = @_;
 
-    my $get_timeout_cr = $self->{'get_timeout_cr'} or die 'no get_timeout_cr!';
+    ($self->{'_set_timer_cr'} ||= do {
+        my $loop = $self->{'loop'};
 
-    my $loop = $self->{'loop'};
+        my $ctx = $self->{'lws_context'};
 
-    my $timer_sr = \$self->{'timer'};
+        my $timer_sr = \$self->{'timer'};
 
-    $loop->unwatch_time($$timer_sr) if $$timer_sr;
+        sub {
+            $loop->unwatch_time($$timer_sr) if $$timer_sr;
 
-    sub {
-        $$timer_sr = $loop->watch_time(
-            after => $get_timeout_cr->() / 1000,
-            code => __SUB__,
-        );
-    }->();
+            $$timer_sr = $loop->watch_time(
+                after => Net::Libwebsockets::get_timeout($ctx) / 1000,
+                code => __SUB__,
+            );
+        };
+    })->();
 }
 
 sub add_fd {
     my ($self, $fd) = @_;
-print "add_fd: $self, $fd\n";
 
     my $fh = ($self->{'io_fdsaver'} ||= IO::FDSaver->new())->get_fh($fd);
 
-    my $ctx_sr = \$self->{'lws_context'};
-
-    my $on_readable_cr = $self->{'context_package'}->can('lws_service_fd_read');
-    my $on_writable_cr = $self->{'context_package'}->can('lws_service_fd_write');
+    my $ctx = $self->{'lws_context'};
 
     $self->{'fd_handle'}{$fd} = IO::Async::Handle->new(
         handle => $fh,
-        on_read_ready => sub { $on_readable_cr->($$ctx_sr, $fd) },
-        on_write_ready => sub { $on_writable_cr->($$ctx_sr, $fd) },
+        on_read_ready => sub { Net::Libwebsockets::lws_service_fd_read($ctx, $fd) },
+        on_write_ready => sub { Net::Libwebsockets::lws_service_fd_write($ctx, $fd) },
 
         want_readready => 1,
         want_writeready => 0,
@@ -75,18 +73,17 @@ print "add_fd: $self, $fd\n";
 }
 
 sub add_to_fd {
-    my ($self, $fd, $flags) = @_;
-print "add_to_fd($fd, $flags)\n";
+    # my ($self, $fd, $flags) = @_;
 
-    my $handle = $self->{'fd_handle'}{$fd} or do {
-        die "Can’t add polling ($flags) to FD ($fd) that isn’t added!";
+    my $handle = $_[0]->{'fd_handle'}{$_[1]} or do {
+        die "Can’t add polling ($_[2]) to FD ($_[1]) that isn’t added!";
     };
 
-    if ($flags & Net::Libwebsockets::LWS_EV_READ) {
+    if ($_[2] & Net::Libwebsockets::LWS_EV_READ) {
         $handle->want_readready(1);
     }
 
-    if ($flags & Net::Libwebsockets::LWS_EV_WRITE) {
+    if ($_[2] & Net::Libwebsockets::LWS_EV_WRITE) {
         $handle->want_writeready(1);
     }
 
@@ -94,19 +91,19 @@ print "add_to_fd($fd, $flags)\n";
 }
 
 sub remove_from_fd {
-    my ($self, $fd, $flags) = @_;
+    # my ($self, $fd, $flags) = @_;
 
-    if (my $handle = $self->{'fd_handle'}{$fd}) {
-        if ($flags & Net::Libwebsockets::LWS_EV_READ) {
+    if (my $handle = $_[0]->{'fd_handle'}{$_[1]}) {
+        if ($_[2] & Net::Libwebsockets::LWS_EV_READ) {
             $handle->want_readready(0);
         }
 
-        if ($flags & Net::Libwebsockets::LWS_EV_WRITE) {
+        if ($_[2] & Net::Libwebsockets::LWS_EV_WRITE) {
             $handle->want_writeready(0);
         }
     }
     else {
-        warn "removing poll $flags from non-polled FD $fd";
+        # warn "removing poll $flags from non-polled FD $fd";
     }
 
     # return omitted to save an op
@@ -119,7 +116,7 @@ sub remove_fd {
         $self->{'loop'}->remove($handle);
     }
     else {
-        warn "LWS wants to remove non-polled FD $fd";
+        # warn "LWS wants to remove non-polled FD $fd";
     }
 
     # return omitted to save an op

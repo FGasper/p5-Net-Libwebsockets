@@ -14,7 +14,10 @@ SV* xsh_ptr_to_svrv (pTHX_ void* ptr, HV* stash) {
 
 void xsh_call_object_method_void (pTHX_ SV* object, const char* methname, SV** args) {
     unsigned argscount = 0;
-    while (args[argscount] != NULL) argscount++;
+
+    while (args[argscount] != NULL) {
+        argscount++;
+    }
 
     dSP;
 

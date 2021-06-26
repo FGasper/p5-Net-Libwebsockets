@@ -495,6 +495,8 @@ static inline void _lws_service_fd (pTHX_ UV lws_context_uv, int fd, short event
 
 MODULE = Net::Libwebsockets     PACKAGE = Net::Libwebsockets
 
+PROTOTYPES: DISABLE
+
 BOOT:
     newCONSTSUB(gv_stashpv("Net::Libwebsockets", FALSE), "LCCSCF_USE_SSL", newSVuv(LCCSCF_USE_SSL));
     newCONSTSUB(gv_stashpv("Net::Libwebsockets", FALSE), "LCCSCF_ALLOW_SELFSIGNED", newSVuv(LCCSCF_ALLOW_SELFSIGNED));
@@ -503,10 +505,6 @@ BOOT:
     newCONSTSUB(gv_stashpv("Net::Libwebsockets", FALSE), "LCCSCF_ALLOW_INSECURE", newSVuv(LCCSCF_ALLOW_INSECURE));
     newCONSTSUB(gv_stashpv("Net::Libwebsockets", FALSE), "LWS_EV_READ", newSVuv(LWS_EV_READ));
     newCONSTSUB(gv_stashpv("Net::Libwebsockets", FALSE), "LWS_EV_WRITE", newSVuv(LWS_EV_WRITE));
-
-MODULE = Net::Libwebsockets     PACKAGE = Net::Libwebsockets::WebSocket::Client
-
-PROTOTYPES: DISABLE
 
 void
 lws_service_fd_read( UV lws_context_uv, int fd )
@@ -519,9 +517,9 @@ lws_service_fd_write( UV lws_context_uv, int fd )
         _lws_service_fd(aTHX_ lws_context_uv, fd, POLLOUT);
 
 int
-get_timeout( SV* lws_context_sv )
+get_timeout( UV lws_context_uv )
     CODE:
-        intptr_t lws_context_int = (intptr_t) SvUV(lws_context_sv);
+        intptr_t lws_context_int = lws_context_uv;
         struct lws_context *context = (void *) lws_context_int;
 
         RETVAL = lws_service_adjust_timeout(
@@ -532,6 +530,10 @@ get_timeout( SV* lws_context_sv )
 
     OUTPUT:
         RETVAL
+
+MODULE = Net::Libwebsockets     PACKAGE = Net::Libwebsockets::WebSocket::Client
+
+PROTOTYPES: DISABLE
 
 SV*
 _new (SV* hostname, int port, SV* path, SV* subprotocols_sv, SV* headers_ar, int tls_opts, unsigned ping_interval, unsigned ping_timeout, SV* loop_obj, SV* connected_d)
@@ -606,9 +608,6 @@ _new (SV* hostname, int port, SV* path, SV* subprotocols_sv, SV* headers_ar, int
 
         fprintf(stderr, "lws context: %" UVf "\n", (UV) context);
         my_perl_context->lws_context = context;
-
-        SV* set_ctx_args[] = { sv_2mortal( newSVuv((intptr_t) context) ) };
-        _call_object_method(aTHX_ loop_obj, "set_lws_context", 1, set_ctx_args);
 
         const char* hostname_str = SvPVbyte_nolen(hostname);
 
