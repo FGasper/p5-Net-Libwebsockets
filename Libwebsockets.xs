@@ -14,6 +14,8 @@
 
 #define DEBUG 1
 
+#include "xshelper/xshelper.h"
+
 #include "nlws.h"
 #include "nlws_frame.h"
 #include "nlws_courier.h"
@@ -49,12 +51,12 @@ typedef struct {
 } my_perl_context_t;
 
 static const struct lws_extension default_extensions[] = {
-        {
-                "permessage-deflate",
-                lws_extension_callback_pm_deflate,
-                "permessage-deflate",
-        },
-        { NULL, NULL, NULL } // terminator
+    {
+        "permessage-deflate",
+        lws_extension_callback_pm_deflate,
+        "permessage-deflate",
+    },
+    { NULL, NULL, NULL } // terminator
 };
 
 typedef struct {
@@ -62,18 +64,6 @@ typedef struct {
     struct lws_context *lws_context;
     pid_t pid;
 } connect_state_t;
-
-SV* _ptr_to_svrv(pTHX_ void* ptr, HV* stash) {
-    SV* referent = newSVuv( PTR2UV(ptr) );
-    SV* retval = newRV_noinc(referent);
-    sv_bless(retval, stash);
-
-    return retval;
-}
-
-void* svrv_to_ptr(pTHX_ SV* svrv) {
-    return (void *) (intptr_t) SvUV( SvRV(svrv) );
-}
 
 static void _call_sv_trap(pTHX_ SV* cbref, SV** mortal_args, unsigned argslen) {
     dSP;
@@ -326,7 +316,7 @@ fprintf(stderr, "wsi destroy2\n");
 
         my_perl_context->courier = courier;
 
-        SV* courier_sv = _ptr_to_svrv(aTHX_ courier, gv_stashpv(COURIER_CLASS, FALSE));
+        SV* courier_sv = xsh_ptr_to_svrv(aTHX_ courier, gv_stashpv(COURIER_CLASS, FALSE));
         my_perl_context->courier_sv = courier_sv;
 
         _finish_deferred_sv( aTHX_ &my_perl_context->connect_d, "resolve", newSVsv(courier_sv) );
@@ -653,7 +643,7 @@ _new (SV* hostname, int port, SV* path, SV* subprotocols_sv, SV* headers_ar, int
         connect_state->lws_context = context;
         connect_state->pid = getpid();
 
-        RETVAL = _ptr_to_svrv(aTHX_ connect_state, gv_stashpv(WEBSOCKET_CLASS, FALSE));
+        RETVAL = xsh_ptr_to_svrv(aTHX_ connect_state, gv_stashpv(WEBSOCKET_CLASS, FALSE));
 
     OUTPUT:
         RETVAL
@@ -662,7 +652,7 @@ void
 DESTROY (SV* self_sv)
     CODE:
         warn("start connect_state destroy\n");
-        connect_state_t* connect_state = svrv_to_ptr(aTHX_ self_sv);
+        connect_state_t* connect_state = xsh_svrv_to_ptr(aTHX_ self_sv);
 
         if (IS_GLOBAL_DESTRUCTION && (getpid() == connect_state->pid)) {
             warn("Destroying %" SVf " at global destruction!\n", self_sv);
@@ -701,9 +691,9 @@ PROTOTYPES: DISABLE
 void
 DESTROY (SV* self_sv)
     CODE:
-        pause_t* my_pause = svrv_to_ptr(aTHX_ self_sv);
+        pause_t* my_pause = xsh_svrv_to_ptr(aTHX_ self_sv);
 
-        courier_t* courier = svrv_to_ptr(aTHX_ my_pause->courier_sv);
+        courier_t* courier = xsh_svrv_to_ptr(aTHX_ my_pause->courier_sv);
 
         courier->pauses--;
 
@@ -724,7 +714,7 @@ PROTOTYPES: DISABLE
 void
 on_text (SV* self_sv, SV* cbref)
     CODE:
-        courier_t* courier = svrv_to_ptr(aTHX_ self_sv);
+        courier_t* courier = xsh_svrv_to_ptr(aTHX_ self_sv);
 
         SvREFCNT_inc(cbref);
 
@@ -735,7 +725,7 @@ on_text (SV* self_sv, SV* cbref)
 void
 on_binary (SV* self_sv, SV* cbref)
     CODE:
-        courier_t* courier = svrv_to_ptr(aTHX_ self_sv);
+        courier_t* courier = xsh_svrv_to_ptr(aTHX_ self_sv);
 
         SvREFCNT_inc(cbref);
 
@@ -746,7 +736,7 @@ on_binary (SV* self_sv, SV* cbref)
 SV*
 done_p (SV* self_sv)
     CODE:
-        courier_t* courier = svrv_to_ptr(aTHX_ self_sv);
+        courier_t* courier = xsh_svrv_to_ptr(aTHX_ self_sv);
 
         RETVAL = _call_object_method_scalar(aTHX_ courier->done_d, "promise", 0, NULL);
 
@@ -756,7 +746,7 @@ done_p (SV* self_sv)
 void
 send_text (SV* self_sv, SV* payload_sv)
     CODE:
-        courier_t* courier = svrv_to_ptr(aTHX_ self_sv);
+        courier_t* courier = xsh_svrv_to_ptr(aTHX_ self_sv);
 
         STRLEN len;
         U8* buf = (U8*) SvPVutf8(payload_sv, len);
@@ -766,7 +756,7 @@ send_text (SV* self_sv, SV* payload_sv)
 void
 send_binary (SV* self_sv, SV* payload_sv)
     CODE:
-        courier_t* courier = svrv_to_ptr(aTHX_ self_sv);
+        courier_t* courier = xsh_svrv_to_ptr(aTHX_ self_sv);
 
         STRLEN len;
         U8* buf = (U8*) SvPVbyte(payload_sv, len);
@@ -776,10 +766,9 @@ send_binary (SV* self_sv, SV* payload_sv)
 SV*
 pause (SV* self_sv)
     CODE:
-    warn("xxxxxxxxxxxx pausing\n");
         if (GIMME_V == G_VOID) croak("Don’t call pause() in void context!");
 
-        courier_t* courier = svrv_to_ptr(aTHX_ self_sv);
+        courier_t* courier = xsh_svrv_to_ptr(aTHX_ self_sv);
 
         pause_t* my_pause;
         Newx(my_pause, 1, pause_t);
@@ -793,7 +782,7 @@ pause (SV* self_sv)
 
         courier->pauses++;
 
-        RETVAL = _ptr_to_svrv(aTHX_ my_pause, gv_stashpv(PAUSE_CLASS, FALSE));
+        RETVAL = xsh_ptr_to_svrv(aTHX_ my_pause, gv_stashpv(PAUSE_CLASS, FALSE));
 
     OUTPUT:
         RETVAL
@@ -801,7 +790,7 @@ pause (SV* self_sv)
 void
 close (SV* self_sv, U16 code=LWS_CLOSE_STATUS_NOSTATUS, SV* reason_sv=NULL)
     CODE:
-        courier_t* courier = svrv_to_ptr(aTHX_ self_sv);
+        courier_t* courier = xsh_svrv_to_ptr(aTHX_ self_sv);
 
         if (reason_sv && SvOK(reason_sv)) {
             U8* reason = (U8*) SvPVutf8(reason_sv, courier->close_reason_length);
@@ -823,7 +812,7 @@ close (SV* self_sv, U16 code=LWS_CLOSE_STATUS_NOSTATUS, SV* reason_sv=NULL)
 void
 DESTROY (SV* self_sv)
     CODE:
-        courier_t* courier = svrv_to_ptr(aTHX_ self_sv);
+        courier_t* courier = xsh_svrv_to_ptr(aTHX_ self_sv);
         warn("xxxxxx destroying %" SVf "\n", self_sv);
 
         if (IS_GLOBAL_DESTRUCTION && (getpid() == courier->pid)) {

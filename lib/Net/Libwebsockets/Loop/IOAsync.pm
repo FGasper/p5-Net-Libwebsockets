@@ -76,6 +76,7 @@ print "add_fd: $self, $fd\n";
 
 sub add_to_fd {
     my ($self, $fd, $flags) = @_;
+print "add_to_fd($fd, $flags)\n";
 
     my $handle = $self->{'fd_handle'}{$fd} or do {
         die "Can’t add polling ($flags) to FD ($fd) that isn’t added!";

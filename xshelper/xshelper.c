@@ -1,7 +1,18 @@
 #include "xshelper.h"
 
+void* xsh_svrv_to_ptr (pTHX_ SV* svrv) {
+    return (void *) (intptr_t) SvUV( SvRV(svrv) );
+}
+
+SV* xsh_ptr_to_svrv (pTHX_ void* ptr, HV* stash) {
+    SV* referent = newSVuv( PTR2UV(ptr) );
+    SV* retval = newRV_noinc(referent);
+    sv_bless(retval, stash);
+
+    return retval;
+}
+
 void xsh_call_object_method_void (pTHX_ SV* object, const char* methname, SV** args) {
-fprintf(stderr, "calling method: %s\n", methname);
     unsigned argscount = 0;
     while (args[argscount] != NULL) argscount++;
 
@@ -16,7 +27,8 @@ fprintf(stderr, "calling method: %s\n", methname);
 
     PUSHs( sv_mortalcopy(object) );
 
-    while (argscount--) mPUSHs( args[argscount] );
+    unsigned a=0;
+    while (a < argscount) mPUSHs( args[a++] );
 
     PUTBACK;
 
