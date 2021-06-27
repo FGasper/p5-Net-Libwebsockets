@@ -14,7 +14,6 @@
 
 typedef struct {
     struct lws *wsi;
-    struct lws_context* lws_context;
 
     unsigned on_text_count;
     SV** on_text;
@@ -37,7 +36,7 @@ typedef struct {
     STRLEN          close_reason_length;
 } courier_t;
 
-courier_t* nlws_create_courier (pTHX_ struct lws *wsi, struct lws_context *context);
+courier_t* nlws_create_courier (pTHX_ struct lws *wsi);
 
 void nlws_destroy_courier (pTHX_ courier_t* courier);
 

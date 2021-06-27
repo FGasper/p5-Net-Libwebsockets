@@ -26,12 +26,11 @@ static inline SV* _new_deferred_sv(pTHX) {
     return deferred_sv;
 }
 
-courier_t* nlws_create_courier (pTHX_ struct lws *wsi, struct lws_context *context) {
+courier_t* nlws_create_courier (pTHX_ struct lws *wsi) {
     courier_t* courier;
     Newx(courier, 1, courier_t);
 
     courier->wsi = wsi;
-    courier->lws_context = context;
 
     courier->on_text_count = 0;
     courier->on_text = NULL;

@@ -32,6 +32,7 @@ typedef enum {
 
 typedef struct {
     tTHX aTHX;
+
     SV* connect_d;
 
     SV* headers_ar;
@@ -226,7 +227,7 @@ fprintf(stderr, "wsi destroy2\n");
         } break;
 
     case LWS_CALLBACK_CLIENT_ESTABLISHED: {
-        courier_t* courier = nlws_create_courier(aTHX, wsi, my_perl_context->lws_context);
+        courier_t* courier = nlws_create_courier(aTHX, wsi);
 
         my_perl_context->courier = courier;
 
@@ -358,9 +359,6 @@ warn("other callback (%d)\n", reason);
 
     return 0;
 }
-
-
-
 
 
 void _courier_sv_send( pTHX_ courier_t* courier, U8* buf, STRLEN len, enum lws_write_protocol protocol ) {
