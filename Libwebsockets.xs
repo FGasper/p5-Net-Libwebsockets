@@ -38,8 +38,6 @@ typedef struct {
 
     SV* headers_ar;
 
-    struct lws_context* lws_context;
-
     net_lws_abstract_loop_t* abstract_loop;
 
     courier_t* courier;
@@ -516,7 +514,6 @@ _new (SV* hostname, int port, SV* path, SV* subprotocols_sv, SV* headers_ar, int
         }
 
         fprintf(stderr, "lws context: %" UVf "\n", (UV) context);
-        my_perl_context->lws_context = context;
 
         const char* hostname_str = SvPVbyte_nolen(hostname);
 
