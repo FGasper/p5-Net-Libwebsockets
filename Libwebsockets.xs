@@ -32,6 +32,7 @@ typedef enum {
 
 typedef struct {
     tTHX aTHX;
+    pid_t pid;
 
     SV* connect_d;
 
@@ -59,12 +60,6 @@ static const struct lws_extension default_extensions[] = {
     },
     { NULL, NULL, NULL } // terminator
 };
-
-typedef struct {
-    my_perl_context_t* perl_context;
-    struct lws_context *lws_context;
-    pid_t pid;
-} connect_state_t;
 
 static inline void _finish_deferred_sv (pTHX_ SV** deferred_svp, const char* methname, SV* payload) {
 warn("finishing deferred (payload=%p)\n", payload);
@@ -361,7 +356,7 @@ warn("other callback (%d)\n", reason);
 }
 
 
-void _courier_sv_send( pTHX_ courier_t* courier, U8* buf, STRLEN len, enum lws_write_protocol protocol ) {
+void _courier_send( pTHX_ courier_t* courier, U8* buf, STRLEN len, enum lws_write_protocol protocol ) {
 
     frame_t frame = {
         .len = len,
@@ -463,6 +458,7 @@ _new (SV* hostname, int port, SV* path, SV* subprotocols_sv, SV* headers_ar, int
         my_perl_context_t* my_perl_context;
         Newxz(my_perl_context, 1, my_perl_context_t); // TODO clean up
         my_perl_context->aTHX = aTHX;
+        my_perl_context->pid = getpid();
 
         my_perl_context->connect_d = connected_d;
         SvREFCNT_inc(connected_d);
@@ -546,16 +542,7 @@ _new (SV* hostname, int port, SV* path, SV* subprotocols_sv, SV* headers_ar, int
             croak("lws connect failed");
         }
 
-        connect_state_t* connect_state;
-        Newx(connect_state, 1, connect_state_t);
-
-        fprintf(stderr, "my_perl_context: %p\n", my_perl_context);
-
-        connect_state->perl_context = my_perl_context;
-        connect_state->lws_context = context;
-        connect_state->pid = getpid();
-
-        RETVAL = xsh_ptr_to_svrv(aTHX_ connect_state, gv_stashpv(WEBSOCKET_CLASS, FALSE));
+        RETVAL = xsh_ptr_to_svrv(aTHX_ context, gv_stashpv(WEBSOCKET_CLASS, FALSE));
 
     OUTPUT:
         RETVAL
@@ -564,20 +551,20 @@ void
 DESTROY (SV* self_sv)
     CODE:
         warn("start connect_state destroy\n");
-        connect_state_t* connect_state = xsh_svrv_to_ptr(aTHX_ self_sv);
+        struct lws_context *context = xsh_svrv_to_ptr(aTHX_ self_sv);
 
-        if (IS_GLOBAL_DESTRUCTION && (getpid() == connect_state->pid)) {
+        my_perl_context_t* my_perl_context = lws_context_user(context);
+
+        if (IS_GLOBAL_DESTRUCTION && (getpid() == my_perl_context->pid)) {
             warn("Destroying %" SVf " at global destruction!\n", self_sv);
         }
 
-        if (connect_state->perl_context->connect_d) {
+        if (my_perl_context->connect_d) {
 
             // If we got here, then we’re DESTROYed before the
             // connection was ever made.
 
-            my_perl_context_t* my_perl_context = connect_state->perl_context;
-
-            lws_context_destroy(connect_state->lws_context);
+            lws_context_destroy(context);
 
             SvREFCNT_dec(my_perl_context->connect_d);
 
@@ -591,7 +578,6 @@ DESTROY (SV* self_sv)
             Safefree(my_perl_context);
         }
 
-        Safefree(connect_state);
         warn("end connect_state destroy\n");
 
 # ----------------------------------------------------------------------
@@ -663,7 +649,7 @@ send_text (SV* self_sv, SV* payload_sv)
         STRLEN len;
         U8* buf = (U8*) SvPVutf8(payload_sv, len);
 
-        _courier_sv_send(aTHX_ courier, buf, len, LWS_WRITE_TEXT);
+        _courier_send(aTHX_ courier, buf, len, LWS_WRITE_TEXT);
 
 void
 send_binary (SV* self_sv, SV* payload_sv)
@@ -673,7 +659,7 @@ send_binary (SV* self_sv, SV* payload_sv)
         STRLEN len;
         U8* buf = (U8*) SvPVbyte(payload_sv, len);
 
-        _courier_sv_send(aTHX_ courier, buf, len, LWS_WRITE_BINARY);
+        _courier_send(aTHX_ courier, buf, len, LWS_WRITE_BINARY);
 
 SV*
 pause (SV* self_sv)
