@@ -152,7 +152,7 @@ void _on_ws_message(pTHX_ my_perl_context_t* my_perl_context, SV* msgsv) {
 }
 
 static int
-net_lws_callback(
+net_lws_wsclient_callback(
     struct lws *wsi,
     enum lws_callback_reasons reason,
     void *user,
@@ -399,6 +399,16 @@ static inline void _lws_service_fd (pTHX_ UV lws_context_uv, int fd, short event
     }
 }
 
+const struct lws_protocols wsclient_protocols[] = {
+    {
+        .name = NET_LWS_LOCAL_PROTOCOL_NAME,
+        .callback = net_lws_wsclient_callback,
+        .per_session_data_size = sizeof(void*),
+        .rx_buffer_size = 0,
+    },
+    { NULL, NULL, 0, 0 }
+};
+
 /* ---------------------------------------------------------------------- */
 
 MODULE = Net::Libwebsockets     PACKAGE = Net::Libwebsockets
@@ -485,7 +495,7 @@ _new (SV* hostname, int port, SV* path, SV* subprotocols_sv, SV* headers_ar, int
 
         info.event_lib_custom = &evlib_custom;
 
-        info.user = (void *) my_perl_context;
+        info.user = my_perl_context;
 
         Newx(my_perl_context->abstract_loop, 1, net_lws_abstract_loop_t);
         my_perl_context->abstract_loop->aTHX = aTHX;
@@ -498,17 +508,7 @@ _new (SV* hostname, int port, SV* path, SV* subprotocols_sv, SV* headers_ar, int
 
         info.port = CONTEXT_PORT_NO_LISTEN; /* we do not run any server */
 
-        const struct lws_protocols protocols[] = {
-            {
-                .name = NET_LWS_LOCAL_PROTOCOL_NAME,
-                .callback = net_lws_callback,
-                .per_session_data_size = sizeof(void*),
-                .rx_buffer_size = 0,
-            },
-            { NULL, NULL, 0, 0 }
-        };
-
-        info.protocols = protocols;
+        info.protocols = wsclient_protocols;
 
         struct lws_context *context = lws_create_context(&info);
         if (!context) {
@@ -528,7 +528,7 @@ _new (SV* hostname, int port, SV* path, SV* subprotocols_sv, SV* headers_ar, int
         client.origin = hostname_str;
         client.ssl_connection = tls_opts;
         client.retry_and_idle_policy = &my_perl_context->lws_retry;
-        client.local_protocol_name = protocols[0].name;
+        //client.local_protocol_name = wsclient_protocols[0].name;
 
         // The callback’s `user`:
         client.userdata = my_perl_context;
