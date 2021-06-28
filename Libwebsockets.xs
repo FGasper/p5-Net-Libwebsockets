@@ -28,6 +28,8 @@
 #define LOG_FUNC
 #endif
 
+#define WS_CLOSE_IS_FAILURE(code) (code == LWS_CLOSE_STATUS_NOSTATUS || code == LWS_CLOSE_STATUS_NORMAL)
+
 typedef struct {
     SV* courier_sv;
 } pause_t;
@@ -67,14 +69,14 @@ static inline void _finish_deferred_sv (pTHX_ SV** deferred_svp, const char* met
 
 }
 
-void _on_ws_close (pTHX_ my_perl_context_t* my_perl_context, uint16_t code, size_t reasonlen, const char* reason) {
+void _on_ws_close (pTHX_ my_perl_context_t* my_perl_context, uint16_t code, size_t reasonlen, const U8* reason) {
     LOG_FUNC;
 
     AV* code_reason = av_make(
         2,
         ( (SV*[]) {
             newSVuv(code),
-            newSVpvn(reason, reasonlen),
+            newSVpvn((const char *) reason, reasonlen),
         } )
     );
 
@@ -323,8 +325,13 @@ warn("writable: we started close\n");
         courier_t* courier = my_perl_context->courier;
 
         if (courier->close_yn) {
-warn("client closed cuz us (courier=%p)\n", courier->done_d);
-            _finish_deferred_sv( aTHX_ &courier->done_d, "resolve", NULL );
+warn("client closed cuz us (courier=%p; code=%d, reasonlen=%zu)\n", courier->done_d, courier->close_status, courier->close_reason_length);
+            _on_ws_close(aTHX_
+                my_perl_context,
+                courier->close_status,
+                courier->close_reason_length,
+                courier->close_reason
+            );
         }
         else {
             warn("LWS_CALLBACK_CLIENT_CLOSED but we didn’t close … is this OK?");
@@ -632,6 +639,9 @@ close (SV* self_sv, U16 code=LWS_CLOSE_STATUS_NOSTATUS, SV* reason_sv=NULL)
             }
 
             memcpy(courier->close_reason, reason, courier->close_reason_length);
+        }
+        else {
+            courier->close_reason_length = 0;
         }
 
         courier->close_yn = true;

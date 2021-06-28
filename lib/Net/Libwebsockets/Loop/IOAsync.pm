@@ -15,11 +15,10 @@ use Net::Libwebsockets ();
 use IO::Async::Handle ();
 
 sub new {
-    my ($class, $ctx_pkg, $loop) = @_;
+    my ($class, $loop) = @_;
 
     return bless {
         pid => $$,
-        context_package => $ctx_pkg,
         loop => $loop,
     }, $class;
 }

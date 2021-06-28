@@ -142,7 +142,7 @@ sub _get_loop_obj {
     require "Net/Libwebsockets/Loop/$event.pm";
     my $event_ns = "Net::Libwebsockets::Loop::$event";
 
-    return $event_ns->new(__PACKAGE__, @args);
+    return $event_ns->new(@args);
 }
 
 1;

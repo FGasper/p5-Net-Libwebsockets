@@ -17,6 +17,8 @@ SV* xsh_call_object_method_scalar (pTHX_ SV* object, const char* methname, SV** 
 
 void xsh_call_sv_trap_void (pTHX_ SV* cbref, SV** args, const char *warnprefix);
 
+//----------------------------------------------------------------------
+
 /*
     Creates a new SVRV that refers to ptr, blessed as a scalar reference.
 */
@@ -28,5 +30,6 @@ SV* xsh_ptr_to_svrv (pTHX_ void* ptr, HV* stash);
 */
 void* xsh_svrv_to_ptr (pTHX_ SV* svrv);
 
+//----------------------------------------------------------------------
 
 #endif

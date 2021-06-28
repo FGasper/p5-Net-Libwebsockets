@@ -71,18 +71,15 @@ sub add_to_fd {
 sub remove_from_fd {
     my ($self, $fd, $flags) = @_;
 
+    # This gets called extra times, alas.
+    # Maybe optimize that by implementing this method in C?
+
     if ($flags & Net::Libwebsockets::LWS_EV_READ) {
         delete $self->{$fd}[0];
-#        delete $self->{$fd}[0] or do {
-#            warn "LWS asked to drop nonexistent reader for FD $fd\n";
-#        };
     }
 
     if ($flags & Net::Libwebsockets::LWS_EV_WRITE) {
         delete $self->{$fd}[1];
-#        delete $self->{$fd}[1] or do {
-#            warn "LWS asked to drop nonexistent writer for FD $fd\n";
-#        };
     }
 
     # return omitted to save an op
