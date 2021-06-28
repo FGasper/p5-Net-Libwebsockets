@@ -30,10 +30,10 @@ sub _do_later {
     # return omitted to save an op
 }
 
-sub set_timer {
+sub _init_timer {
     my ($self) = @_;
 
-    ($self->{'_set_timer_cr'} ||= do {
+    $self->{'_set_timer_cr'} ||= do {
         my $loop = $self->{'loop'};
 
         my $ctx = $self->{'lws_context'};
@@ -48,7 +48,15 @@ sub set_timer {
                 code => __SUB__,
             );
         };
-    })->();
+    };
+
+    return;
+}
+
+sub set_timer {
+    my ($self) = @_;
+
+    $self->{'_set_timer_cr'}->();
 }
 
 sub add_fd {
@@ -58,10 +66,18 @@ sub add_fd {
 
     my $ctx = $self->{'lws_context'};
 
+    my $set_timer_cr = $self->{'_set_timer_cr'} or die "no timer cr set?!?";
+
     $self->{'fd_handle'}{$fd} = IO::Async::Handle->new(
         handle => $fh,
-        on_read_ready => sub { Net::Libwebsockets::lws_service_fd_read($ctx, $fd) },
-        on_write_ready => sub { Net::Libwebsockets::lws_service_fd_write($ctx, $fd) },
+        on_read_ready => sub {
+            Net::Libwebsockets::lws_service_fd_read($ctx, $fd);
+            &$set_timer_cr;
+        },
+        on_write_ready => sub {
+            Net::Libwebsockets::lws_service_fd_write($ctx, $fd);
+            &$set_timer_cr;
+        },
 
         want_readready => 1,
         want_writeready => 0,

@@ -21,6 +21,12 @@
 #include "nlws_courier.h"
 #include "nlws_perl_loop.h"
 
+#if DEBUG
+#define LOG_FUNC fprintf(stderr, "%s\n", __func__)
+#else
+#define LOG_FUNC
+#endif
+
 typedef struct {
     SV* courier_sv;
 } pause_t;
@@ -45,6 +51,8 @@ typedef struct {
 
     lws_retry_bo_t lws_retry;
 
+    bool added_to_abstract_loop;
+
     char* message_content;
     STRLEN content_length;
     message_type_t message_type;
@@ -60,7 +68,7 @@ static const struct lws_extension default_extensions[] = {
 };
 
 static inline void _finish_deferred_sv (pTHX_ SV** deferred_svp, const char* methname, SV* payload) {
-warn("finishing deferred (payload=%p)\n", payload);
+    if (DEBUG) warn("finishing deferred (payload=%p)\n", payload);
 
     if (!*deferred_svp) croak("Can’t %s(); already finished!", methname);
 
@@ -86,7 +94,7 @@ warn("finishing deferred (payload=%p)\n", payload);
 }
 
 void _on_ws_close (pTHX_ my_perl_context_t* my_perl_context, uint16_t code, size_t reasonlen, const char* reason) {
-fprintf(stderr, "%s\n", __func__);
+    LOG_FUNC;
 
     AV* code_reason = av_make(
         2,
@@ -102,6 +110,7 @@ fprintf(stderr, "%s\n", __func__);
 }
 
 void _on_ws_error (pTHX_ my_perl_context_t* my_perl_context, size_t reasonlen, const char* reason) {
+    LOG_FUNC;
 
     SV** deferred_svp;
 
@@ -160,7 +169,21 @@ net_lws_wsclient_callback(
     my_perl_context_t* my_perl_context = user;
 
     // Not all callbacks pass user??
-    pTHX = my_perl_context ? my_perl_context->aTHX : NULL;
+    pTHX;
+
+    if (my_perl_context) {
+        aTHX = my_perl_context->aTHX;
+
+        if (!my_perl_context->added_to_abstract_loop) {
+            net_lws_abstract_loop_t* myloop_p = (net_lws_abstract_loop_t*) lws_evlib_wsi_to_evlib_pt(wsi);
+
+            myloop_p->perl_context = my_perl_context;
+
+            my_perl_context->added_to_abstract_loop = true;
+        }
+    }
+
+fprintf(stderr, "callback: %d\n", reason);
 
     switch (reason) {
 
@@ -389,12 +412,14 @@ static inline void _lws_service_fd (pTHX_ UV lws_context_uv, int fd, short event
 
     lws_service_fd(context, &pollfd);
 
+/*
     my_perl_context_t* my_perl_context = lws_context_user(context);
 
     if (my_perl_context && my_perl_context->abstract_loop) {
         SV* loop_sv = my_perl_context->abstract_loop->perlobj;
         xsh_call_object_method_void(aTHX_ loop_sv, "set_timer", NULL);
     }
+*/
 }
 
 const struct lws_protocols wsclient_protocols[] = {
@@ -436,6 +461,7 @@ int
 get_timeout( UV lws_context_uv )
     CODE:
         intptr_t lws_context_int = lws_context_uv;
+
         struct lws_context *context = (void *) lws_context_int;
 
         RETVAL = lws_service_adjust_timeout(
@@ -493,7 +519,7 @@ _new (SV* hostname, int port, SV* path, SV* subprotocols_sv, SV* headers_ar, int
 
         info.event_lib_custom = &evlib_custom;
 
-        info.user = my_perl_context;
+        //info.user = my_perl_context;
 
         Newx(my_perl_context->abstract_loop, 1, net_lws_abstract_loop_t);
         my_perl_context->abstract_loop->aTHX = aTHX;
@@ -544,38 +570,38 @@ _new (SV* hostname, int port, SV* path, SV* subprotocols_sv, SV* headers_ar, int
     OUTPUT:
         RETVAL
 
-void
-DESTROY (SV* self_sv)
-    CODE:
-        warn("start connect_state destroy\n");
-        struct lws_context *context = xsh_svrv_to_ptr(aTHX_ self_sv);
-
-        my_perl_context_t* my_perl_context = lws_context_user(context);
-
-        if (IS_GLOBAL_DESTRUCTION && (getpid() == my_perl_context->pid)) {
-            warn("Destroying %" SVf " at global destruction!\n", self_sv);
-        }
-
-        if (my_perl_context->connect_d) {
-
-            // If we got here, then we’re DESTROYed before the
-            // connection was ever made.
-
-            lws_context_destroy(context);
-
-            SvREFCNT_dec(my_perl_context->connect_d);
-
-            if (my_perl_context->message_content) {
-                Safefree(my_perl_context->message_content);
-            }
-
-            SvREFCNT_dec(my_perl_context->abstract_loop->perlobj);
-            Safefree(my_perl_context->abstract_loop);
-
-            Safefree(my_perl_context);
-        }
-
-        warn("end connect_state destroy\n");
+##void
+##DESTROY (SV* self_sv)
+##    CODE:
+##        warn("start connect_state destroy\n");
+##        struct lws_context *context = xsh_svrv_to_ptr(aTHX_ self_sv);
+##
+##        my_perl_context_t* my_perl_context = lws_context_user(context);
+##
+##        if (IS_GLOBAL_DESTRUCTION && (getpid() == my_perl_context->pid)) {
+##            warn("Destroying %" SVf " at global destruction!\n", self_sv);
+##        }
+##
+##        if (my_perl_context->connect_d) {
+##
+##            // If we got here, then we’re DESTROYed before the
+##            // connection was ever made.
+##
+##            lws_context_destroy(context);
+##
+##            SvREFCNT_dec(my_perl_context->connect_d);
+##
+##            if (my_perl_context->message_content) {
+##                Safefree(my_perl_context->message_content);
+##            }
+##
+##            SvREFCNT_dec(my_perl_context->abstract_loop->perlobj);
+##            Safefree(my_perl_context->abstract_loop);
+##
+##            Safefree(my_perl_context);
+##        }
+##
+##        warn("end connect_state destroy\n");
 
 # ----------------------------------------------------------------------
 
@@ -728,6 +754,7 @@ _xs_pre_destroy (SV* self_sv, SV* context_ptr_sv)
         UNUSED(self_sv);
 
         if (SvOK(context_ptr_sv)) {
+        /*
             intptr_t lws_context_int = SvUV(context_ptr_sv);
 
             struct lws_context *context = (void *) lws_context_int;
@@ -738,4 +765,5 @@ _xs_pre_destroy (SV* self_sv, SV* context_ptr_sv)
                 Safefree(my_perl_context->abstract_loop);
                 my_perl_context->abstract_loop = NULL;
             }
+        */
         }

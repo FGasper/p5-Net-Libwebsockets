@@ -1,8 +1,12 @@
 #include "nlws_perl_loop.h"
 #include "xshelper/xshelper.h"
 
+#define LOG_FUNC fprintf(stderr, "%s\n", __func__)
+
 static int
 init_pt_custom (struct lws_context *cx, void *_loop, int tsi) {
+    LOG_FUNC;
+
     net_lws_abstract_loop_t* myloop_p = lws_evlib_tsi_to_evlib_pt(cx, tsi);
 
     net_lws_abstract_loop_t *sourceloop_p = _loop;
@@ -23,6 +27,8 @@ init_pt_custom (struct lws_context *cx, void *_loop, int tsi) {
 
 static int
 custom_io_accept (struct lws *wsi) {
+    LOG_FUNC;
+
     net_lws_abstract_loop_t* myloop_p = lws_evlib_wsi_to_evlib_pt(wsi);
 
     pTHX = myloop_p->aTHX;
@@ -40,6 +46,8 @@ custom_io_accept (struct lws *wsi) {
 
 static void
 custom_io (struct lws *wsi, unsigned int flags) {
+    LOG_FUNC;
+
     net_lws_abstract_loop_t* myloop_p = lws_evlib_wsi_to_evlib_pt(wsi);
 
     int fd = lws_get_socket_fd(wsi);
@@ -70,6 +78,8 @@ custom_io (struct lws *wsi, unsigned int flags) {
 
 static int
 custom_io_close (struct lws *wsi) {
+    LOG_FUNC;
+
     net_lws_abstract_loop_t* myloop_p = lws_evlib_wsi_to_evlib_pt(wsi);
 
     int fd = lws_get_socket_fd(wsi);

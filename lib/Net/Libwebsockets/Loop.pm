@@ -19,6 +19,7 @@ sub set_lws_context {
     print "======= did set context: $ctx\n";
 
     #$self->start_timer();
+    $self->_init_timer();
 
     $self->_do_later( sub { $self->set_timer() } );
 
