@@ -107,7 +107,7 @@ sub connect {
 
     my $loop_obj = _get_loop_obj($event);
 
-    my $wsc = _new(
+    _new(
         $hostname, $port, $path,
         $subprotocols ? join(', ', $subprotocols) : undef,
         \@headers_copy,
@@ -117,7 +117,7 @@ sub connect {
         $connected_d,
     );
 
-    return $connected_d->promise()->finally( sub { undef $wsc } );
+    return $connected_d->promise();
 }
 
 sub _validate_uint {

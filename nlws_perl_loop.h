@@ -17,7 +17,7 @@ typedef struct {
 
     SV* perlobj;
 
-    void* perl_context; // TODO: Stronger typing
+    struct lws_context* lws_context;
 } net_lws_abstract_loop_t;
 
 extern const struct lws_event_loop_ops event_loop_ops_custom;

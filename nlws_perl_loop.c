@@ -22,6 +22,10 @@ init_pt_custom (struct lws_context *cx, void *_loop, int tsi) {
 
     StructCopy(sourceloop_p, myloop_p, net_lws_abstract_loop_t);
 
+    myloop_p->lws_context = cx;
+
+    SvREFCNT_inc(myloop_p->perlobj);
+
     return 0;
 }
 

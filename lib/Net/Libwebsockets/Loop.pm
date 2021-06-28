@@ -18,18 +18,25 @@ sub set_lws_context {
 
     print "======= did set context: $ctx\n";
 
-    #$self->start_timer();
-    $self->_init_timer();
+    $self->{'_set_timer_cr'} = $self->_create_set_timer_cr();
 
-    $self->_do_later( sub { $self->set_timer() } );
+    $self->_do_later( $self->{'_set_timer_cr'} );
 
     return;
 }
 
-sub DESTROY {
+sub _get_set_timer_cr {
+    return $_[0]->{'_set_timer_cr'} || die "no timer cr set!";
+}
+
+sub set_timer {
     my ($self) = @_;
 
-    $self->_xs_pre_destroy($self->{'lws_context'});
+    $self->{'_set_timer_cr'}->();
+}
+
+sub DESTROY {
+    my ($self) = @_;
 
 warn "======= destroying $self\n";
     if ($$ == $self->{'pid'} && 'DESTRUCT' eq ${^GLOBAL_PHASE}) {

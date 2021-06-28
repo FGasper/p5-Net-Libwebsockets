@@ -16,20 +16,18 @@ sub _do_later {
     &AnyEvent::postpone;
 };
 
-sub set_timer {
+sub _create_set_timer_cr {
     my ($self) = @_;
 
-    ($self->{'_set_timer_cr'} ||= do {
-        my $ctx = $self->{'lws_context'} or die "No lws_context!";
-        my $timer_sr = \$self->{'timer'};
+    my $ctx = $self->{'lws_context'} or die "No lws_context!";
+    my $timer_sr = \$self->{'timer'};
 
-        sub {
-            $$timer_sr = AnyEvent->timer(
-                after => Net::Libwebsockets::get_timeout($ctx) / 1000,
-                cb => __SUB__,
-            );
-        };
-    })->();
+    return sub {
+        $$timer_sr = AnyEvent->timer(
+            after => Net::Libwebsockets::get_timeout($ctx) / 1000,
+            cb => __SUB__,
+        );
+    };
 }
 
 sub add_fd {
@@ -43,12 +41,15 @@ sub add_to_fd {
 
     my $ctx = $self->{'lws_context'} or die "No lws_context!";
 
+    my $set_timer_cr = $self->_get_set_timer_cr();
+
     if ($flags & Net::Libwebsockets::LWS_EV_READ) {
         $self->{$fd}[0] = AnyEvent->io(
             fh => $fd,
             poll => 'r',
             cb => sub {
                 Net::Libwebsockets::lws_service_fd_read($ctx, $fd);
+                &$set_timer_cr;
             },
         );
     }
@@ -59,6 +60,7 @@ sub add_to_fd {
             poll => 'w',
             cb => sub {
                 Net::Libwebsockets::lws_service_fd_write($ctx, $fd);
+                &$set_timer_cr;
             },
         );
     }

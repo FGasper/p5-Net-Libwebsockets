@@ -20,6 +20,7 @@
 #include "nlws_frame.h"
 #include "nlws_courier.h"
 #include "nlws_perl_loop.h"
+#include "nlws_context.h"
 
 #if DEBUG
 #define LOG_FUNC fprintf(stderr, "%s\n", __func__)
@@ -30,33 +31,6 @@
 typedef struct {
     SV* courier_sv;
 } pause_t;
-
-typedef enum {
-    NET_LWS_MESSAGE_TYPE_TEXT,
-    NET_LWS_MESSAGE_TYPE_BINARY,
-} message_type_t;
-
-typedef struct {
-    tTHX aTHX;
-    pid_t pid;
-
-    SV* connect_d;
-
-    SV* headers_ar;
-
-    net_lws_abstract_loop_t* abstract_loop;
-
-    courier_t* courier;
-    SV* courier_sv;
-
-    lws_retry_bo_t lws_retry;
-
-    bool added_to_abstract_loop;
-
-    char* message_content;
-    STRLEN content_length;
-    message_type_t message_type;
-} my_perl_context_t;
 
 static const struct lws_extension default_extensions[] = {
     {
@@ -169,19 +143,7 @@ net_lws_wsclient_callback(
     my_perl_context_t* my_perl_context = user;
 
     // Not all callbacks pass user??
-    pTHX;
-
-    if (my_perl_context) {
-        aTHX = my_perl_context->aTHX;
-
-        if (!my_perl_context->added_to_abstract_loop) {
-            net_lws_abstract_loop_t* myloop_p = (net_lws_abstract_loop_t*) lws_evlib_wsi_to_evlib_pt(wsi);
-
-            myloop_p->perl_context = my_perl_context;
-
-            my_perl_context->added_to_abstract_loop = true;
-        }
-    }
+    pTHX = my_perl_context ? my_perl_context->aTHX : NULL;
 
 fprintf(stderr, "callback: %d\n", reason);
 
@@ -198,6 +160,8 @@ fprintf(stderr, "wsi destroy\n");
         if (myloop_p && myloop_p->perlobj) {
             SvREFCNT_dec(myloop_p->perlobj);
         }
+
+        lws_context_destroy(myloop_p->lws_context);
 fprintf(stderr, "wsi destroy2\n");
 
         break;
@@ -411,15 +375,6 @@ static inline void _lws_service_fd (pTHX_ UV lws_context_uv, int fd, short event
     };
 
     lws_service_fd(context, &pollfd);
-
-/*
-    my_perl_context_t* my_perl_context = lws_context_user(context);
-
-    if (my_perl_context && my_perl_context->abstract_loop) {
-        SV* loop_sv = my_perl_context->abstract_loop->perlobj;
-        xsh_call_object_method_void(aTHX_ loop_sv, "set_timer", NULL);
-    }
-*/
 }
 
 const struct lws_protocols wsclient_protocols[] = {
@@ -477,17 +432,11 @@ MODULE = Net::Libwebsockets     PACKAGE = Net::Libwebsockets::WebSocket::Client
 
 PROTOTYPES: DISABLE
 
-SV*
+void
 _new (SV* hostname, int port, SV* path, SV* subprotocols_sv, SV* headers_ar, int tls_opts, unsigned ping_interval, unsigned ping_timeout, SV* loop_obj, SV* connected_d)
     CODE:
         //lws_set_log_level( LLL_USER | LLL_ERR | LLL_WARN | LLL_NOTICE | LLL_DEBUG | LLL_PARSER | LLL_HEADER | LLL_INFO, NULL );
         lws_set_log_level( LLL_USER | LLL_ERR | LLL_WARN | LLL_NOTICE | LLL_PARSER | LLL_HEADER | LLL_INFO, NULL );
-
-        struct lws_context_creation_info info;
-        Zero(&info, 1, struct lws_context_creation_info);
-
-        struct lws_client_connect_info client;
-        Zero(&client, 1, struct lws_client_connect_info);
 
         my_perl_context_t* my_perl_context;
         Newxz(my_perl_context, 1, my_perl_context_t); // TODO clean up
@@ -508,31 +457,30 @@ _new (SV* hostname, int port, SV* path, SV* subprotocols_sv, SV* headers_ar, int
         my_perl_context->lws_retry.secs_since_valid_ping = ping_interval;
         my_perl_context->lws_retry.secs_since_valid_hangup = ping_timeout;
 
-
-        info.options = (
-            LWS_SERVER_OPTION_DO_SSL_GLOBAL_INIT
-            | LWS_SERVER_OPTION_VALIDATE_UTF8
-        );
-
-        // TODO: make this adjustable
-        info.extensions = default_extensions;
-
-        info.event_lib_custom = &evlib_custom;
-
         //info.user = my_perl_context;
 
-        Newx(my_perl_context->abstract_loop, 1, net_lws_abstract_loop_t);
-        my_perl_context->abstract_loop->aTHX = aTHX;
-        my_perl_context->abstract_loop->perlobj = loop_obj;
-        SvREFCNT_inc(loop_obj);
-
-        info.foreign_loops = (void *[]) {
-            my_perl_context->abstract_loop,
+        net_lws_abstract_loop_t abstract_loop = {
+            .aTHX = aTHX,
+            .perlobj = loop_obj,
         };
 
-        info.port = CONTEXT_PORT_NO_LISTEN; /* we do not run any server */
+        struct lws_context_creation_info info = {
+            .options = LWS_SERVER_OPTION_DO_SSL_GLOBAL_INIT
+                        | LWS_SERVER_OPTION_VALIDATE_UTF8,
 
-        info.protocols = wsclient_protocols;
+            // TODO: make this adjustable
+            .extensions = default_extensions,
+
+            .event_lib_custom = &evlib_custom,
+
+            .foreign_loops = (void *[]) {
+                &abstract_loop,
+            },
+
+            .port = CONTEXT_PORT_NO_LISTEN, /* we do not run any server */
+
+            .protocols = wsclient_protocols,
+        };
 
         struct lws_context *context = lws_create_context(&info);
         if (!context) {
@@ -543,65 +491,27 @@ _new (SV* hostname, int port, SV* path, SV* subprotocols_sv, SV* headers_ar, int
 
         const char* hostname_str = SvPVbyte_nolen(hostname);
 
-        client.context = context;
-        client.port = port;
-        client.address = hostname_str;
-        client.path = SvPVbyte_nolen(path);
-        client.host = hostname_str;
-        client.origin = hostname_str;
-        client.ssl_connection = tls_opts;
-        client.retry_and_idle_policy = &my_perl_context->lws_retry;
-        //client.local_protocol_name = wsclient_protocols[0].name;
+        struct lws_client_connect_info client = {
+            .context = context,
+            .port = port,
 
-        // The callback’s `user`:
-        client.userdata = my_perl_context;
+            .address = hostname_str,
+            .path = SvPVbyte_nolen(path),
+            .host = hostname_str,
+            .origin = hostname_str,
+            .ssl_connection = tls_opts,
+            .retry_and_idle_policy = &my_perl_context->lws_retry,
 
-        if (SvOK(subprotocols_sv)) {
-            client.protocol = SvPVbyte_nolen(subprotocols_sv);
-        }
+            // The callback’s `user`:
+            .userdata = my_perl_context,
+
+            .protocol = SvOK(subprotocols_sv) ? SvPVbyte_nolen(subprotocols_sv) : NULL,
+        };
 
         if (!lws_client_connect_via_info(&client)) {
             lws_context_destroy(context);
             croak("lws connect failed");
         }
-
-        RETVAL = xsh_ptr_to_svrv(aTHX_ context, gv_stashpv(WEBSOCKET_CLASS, FALSE));
-
-    OUTPUT:
-        RETVAL
-
-##void
-##DESTROY (SV* self_sv)
-##    CODE:
-##        warn("start connect_state destroy\n");
-##        struct lws_context *context = xsh_svrv_to_ptr(aTHX_ self_sv);
-##
-##        my_perl_context_t* my_perl_context = lws_context_user(context);
-##
-##        if (IS_GLOBAL_DESTRUCTION && (getpid() == my_perl_context->pid)) {
-##            warn("Destroying %" SVf " at global destruction!\n", self_sv);
-##        }
-##
-##        if (my_perl_context->connect_d) {
-##
-##            // If we got here, then we’re DESTROYed before the
-##            // connection was ever made.
-##
-##            lws_context_destroy(context);
-##
-##            SvREFCNT_dec(my_perl_context->connect_d);
-##
-##            if (my_perl_context->message_content) {
-##                Safefree(my_perl_context->message_content);
-##            }
-##
-##            SvREFCNT_dec(my_perl_context->abstract_loop->perlobj);
-##            Safefree(my_perl_context->abstract_loop);
-##
-##            Safefree(my_perl_context);
-##        }
-##
-##        warn("end connect_state destroy\n");
 
 # ----------------------------------------------------------------------
 
@@ -741,29 +651,3 @@ DESTROY (SV* self_sv)
         }
 
         nlws_destroy_courier(aTHX_ courier);
-
-# ----------------------------------------------------------------------
-
-MODULE = Net::Libwebsockets     PACKAGE = Net::Libwebsockets::Loop
-
-PROTOTYPES: DISABLE
-
-void
-_xs_pre_destroy (SV* self_sv, SV* context_ptr_sv)
-    CODE:
-        UNUSED(self_sv);
-
-        if (SvOK(context_ptr_sv)) {
-        /*
-            intptr_t lws_context_int = SvUV(context_ptr_sv);
-
-            struct lws_context *context = (void *) lws_context_int;
-
-            my_perl_context_t* my_perl_context = lws_context_user(context);
-
-            if (my_perl_context) {
-                Safefree(my_perl_context->abstract_loop);
-                my_perl_context->abstract_loop = NULL;
-            }
-        */
-        }
