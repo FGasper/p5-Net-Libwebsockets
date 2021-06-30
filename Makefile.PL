@@ -57,8 +57,13 @@ WriteMakefile(
     ],
     LIBS              => [@lflags], # e.g., '-lm'
     DEFINE            => $lws_has_deflate ? '-DNLWS_LWS_HAS_PMD' : '',
-    INC               => "-Wall -I. --std=c99 $cflags",
     LICENSE           => "perl_5",
+
+    INC => "-Wall -I. --std=c99 $cflags",
+
+    # An awful hack to accommodate the fact that otherwise
+    # the created Makefile expects xshelper.o to be in the base dir:
+    CCFLAGS => "$Config{'ccflags'} -o \$@",
 
     OBJECT => [
         '$(BASEEXT)$(OBJ_EXT)',
@@ -67,16 +72,6 @@ WriteMakefile(
         'nlws_perl_loop.o',
         'xshelper/xshelper.o',
     ],
-
-#    LDFROM => join(
-#        q< >,
-#        '$(BASEEXT)$(OBJ_EXT)',
-#        'nlws_courier.o',
-#        'nlws_frame.o',
-#        'nlws_perl_loop.o',
-#        'xshelper.o',
-#    ),
-XSMULTI => 1,
 
     CONFIGURE_REQUIRES => {
 

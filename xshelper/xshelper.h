@@ -19,7 +19,7 @@ void xsh_call_sv_trap_void (pTHX_ SV* cbref, SV** args, const char *warnprefix);
 
 //----------------------------------------------------------------------
 
-inline bool xsh_sv_streq (pTHX_ SV* sv, const char* b);
+bool xsh_sv_streq (pTHX_ SV* sv, const char* b);
 
 //----------------------------------------------------------------------
 
