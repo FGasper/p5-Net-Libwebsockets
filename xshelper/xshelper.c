@@ -1,3 +1,5 @@
+#include <string.h>
+
 #include "xshelper.h"
 
 void* xsh_svrv_to_ptr (pTHX_ SV* svrv) {
@@ -10,6 +12,21 @@ SV* xsh_ptr_to_svrv (pTHX_ void* ptr, HV* stash) {
     sv_bless(retval, stash);
 
     return retval;
+}
+
+/* ---------------------------------------------------------------------- */
+
+inline bool xsh_sv_streq (pTHX_ SV* sv, const char* b) {
+    if (SvOK(sv) && !SvROK(sv)) {
+        STRLEN alen;
+        const char* a = SvPVbyte(sv, alen);
+
+        if (NULL != memchr(a, '\0', alen)) {
+            return strEQ(a, b);
+        }
+    }
+
+    return false;
 }
 
 /* ---------------------------------------------------------------------- */

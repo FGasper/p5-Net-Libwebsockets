@@ -34,15 +34,6 @@ typedef struct {
     SV* courier_sv;
 } pause_t;
 
-static const struct lws_extension default_extensions[] = {
-    {
-        "permessage-deflate",
-        lws_extension_callback_pm_deflate,
-        "permessage-deflate",
-    },
-    { NULL, NULL, NULL } // terminator
-};
-
 static inline void _finish_deferred_sv (pTHX_ SV** deferred_svp, const char* methname, SV* payload) {
     if (DEBUG) warn("finishing deferred (payload=%p)\n", payload);
 
@@ -394,6 +385,26 @@ const struct lws_protocols wsclient_protocols[] = {
     { NULL, NULL, 0, 0 }
 };
 
+#if NLWS_LWS_HAS_PMD
+const struct lws_extension permessage_deflate_default = {
+    .name = "permessage-deflate",
+    .callback = lws_extension_callback_pm_deflate,
+    .client_offer = "permessage-deflate",
+};
+#endif
+
+void _update_pmce_extension_per_opts (pTHX_ struct lws_extension* pmce_extension_p, SV* compression_sv) {
+#if NLWS_LWS_HAS_PMD
+    if (!SvOK(compression_sv) || xsh_sv_streq(aTHX_ compression_sv, "deflate")) {
+        StructCopy(&permessage_deflate_default, pmce_extension_p, struct lws_extension);
+    }
+#else
+    if (!SvOK(compression_sv)) {
+        croak("This libwebsockets lacks compression support.");
+    }
+#endif
+}
+
 /* ---------------------------------------------------------------------- */
 
 MODULE = Net::Libwebsockets     PACKAGE = Net::Libwebsockets
@@ -440,7 +451,7 @@ MODULE = Net::Libwebsockets     PACKAGE = Net::Libwebsockets::WebSocket::Client
 PROTOTYPES: DISABLE
 
 void
-_new (SV* hostname, int port, SV* path, SV* subprotocols_sv, SV* headers_ar, int tls_opts, unsigned ping_interval, unsigned ping_timeout, SV* loop_obj, SV* connected_d)
+_new (SV* hostname, int port, SV* path, SV* compression_sv, SV* subprotocols_sv, SV* headers_ar, int tls_opts, unsigned ping_interval, unsigned ping_timeout, SV* loop_obj, SV* connected_d)
     CODE:
         //lws_set_log_level( LLL_USER | LLL_ERR | LLL_WARN | LLL_NOTICE | LLL_DEBUG | LLL_PARSER | LLL_HEADER | LLL_INFO, NULL );
         lws_set_log_level( LLL_USER | LLL_ERR | LLL_WARN | LLL_NOTICE | LLL_PARSER | LLL_HEADER | LLL_INFO, NULL );
@@ -450,14 +461,12 @@ _new (SV* hostname, int port, SV* path, SV* subprotocols_sv, SV* headers_ar, int
         my_perl_context->aTHX = aTHX;
         my_perl_context->pid = getpid();
 
-        my_perl_context->connect_d = connected_d;
-        SvREFCNT_inc(connected_d);
-
-        my_perl_context->headers_ar = headers_ar;
-        SvREFCNT_inc(headers_ar);
-
         my_perl_context->courier = NULL;
         my_perl_context->courier_sv = NULL;
+
+        // We bump the refcounts of these below:
+        my_perl_context->connect_d = connected_d;
+        my_perl_context->headers_ar = headers_ar;
 
         my_perl_context->lws_retry.retry_ms_table_count = 0;
         my_perl_context->lws_retry.conceal_count = 0;
@@ -471,12 +480,22 @@ _new (SV* hostname, int port, SV* path, SV* subprotocols_sv, SV* headers_ar, int
             .perlobj = loop_obj,
         };
 
+        struct lws_extension pmce_extension = { NULL };
+        _update_pmce_extension_per_opts(
+            aTHX_
+            &pmce_extension,
+            compression_sv
+        );
+
         struct lws_context_creation_info info = {
             .options = LWS_SERVER_OPTION_DO_SSL_GLOBAL_INIT
                         | LWS_SERVER_OPTION_VALIDATE_UTF8,
 
             // TODO: make this adjustable
-            .extensions = default_extensions,
+            .extensions = (struct lws_extension[]) {
+                pmce_extension,
+                { NULL, NULL, NULL } // terminator
+            },
 
             .event_lib_custom = &evlib_custom,
 
@@ -519,6 +538,9 @@ _new (SV* hostname, int port, SV* path, SV* subprotocols_sv, SV* headers_ar, int
             lws_context_destroy(context);
             croak("lws connect failed");
         }
+
+        SvREFCNT_inc(connected_d);
+        SvREFCNT_inc(headers_ar);
 
 # ----------------------------------------------------------------------
 

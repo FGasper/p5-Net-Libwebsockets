@@ -13,6 +13,7 @@ my @_REQUIRED = qw( url event );
 my %_KNOWN = map { $_ => 1 } (
     @_REQUIRED,
     'subprotocols',
+    'compression',
     'headers',
     'tls',
     'ping_interval', 'ping_timeout',
@@ -109,6 +110,7 @@ sub connect {
 
     _new(
         $hostname, $port, $path,
+        $opts{'compression'},
         $subprotocols ? join(', ', $subprotocols) : undef,
         \@headers_copy,
         $tls_flags,
