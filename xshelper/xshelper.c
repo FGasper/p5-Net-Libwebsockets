@@ -16,8 +16,10 @@ SV* xsh_ptr_to_svrv (pTHX_ void* ptr, HV* stash) {
 
 /* ---------------------------------------------------------------------- */
 
-inline bool xsh_sv_streq (pTHX_ SV* sv, const char* b) {
-    if (SvOK(sv) && !SvROK(sv)) {
+bool xsh_sv_streq (pTHX_ SV* sv, const char* b) {
+    if (SvROK(sv)) croak("%" SVf " given where string expected!", sv);
+
+    if (SvOK(sv)) {
         STRLEN alen;
         const char* a = SvPVbyte(sv, alen);
 

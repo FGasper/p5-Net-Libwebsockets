@@ -14,6 +14,9 @@ typedef struct {
     tTHX aTHX;
     pid_t pid;
 
+    // This needs to last throughout the session:
+    struct lws_extension* extensions;
+
     SV* connect_d;
 
     SV* headers_ar;

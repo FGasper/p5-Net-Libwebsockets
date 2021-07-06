@@ -110,7 +110,7 @@ sub connect {
 
     _new(
         $hostname, $port, $path,
-        $opts{'compression'},
+        _compression_to_ext($opts{'compression'}),
         $subprotocols ? join(', ', $subprotocols) : undef,
         \@headers_copy,
         $tls_flags,
@@ -120,6 +120,119 @@ sub connect {
     );
 
     return $connected_d->promise();
+}
+
+sub _validate_deflate_max_window_bits {
+    my ($argname, $val) = @_;
+
+    if ($val < 8 || $val > 15) {
+        Carp::croak "Bad $argname (must be within 8-15): $val";
+    }
+
+    return;
+}
+
+sub _deflate_to_string {
+    my (%args) = @_;
+
+    my @params;
+
+    my $indicated_cmwb;
+
+    for my $argname (%args) {
+        my $val = $args{$argname};
+        next if !defined $val;
+
+        if ($argname eq 'local_context_mode') {
+            if ($val eq 'no_takeover') {
+                push @params, 'client-no-context-takeover';
+            }
+            elsif ($val ne 'takeover') {
+                Carp::croak "Bad “$argname”: $val";
+            }
+        }
+        elsif ($argname eq 'peer_context_mode') {
+            if ($val eq 'no_takeover') {
+                push @params, 'server-no-context-takeover';
+            }
+            elsif ($val ne 'takeover') {
+                Carp::croak "Bad “$argname”: $val";
+            }
+        }
+        elsif ($argname eq 'local_max_window_bits') {
+            _validate_deflate_max_window_bits($argname, $val);
+
+            $indicated_cmwb = 1;
+
+            push @params, "client-max-window-bits=$val";
+        }
+        elsif ($argname eq 'peer_max_window_bits') {
+            _validate_deflate_max_window_bits($argname, $val);
+
+            push @params, "server-max-window-bits=$val";
+        }
+        else {
+            Carp::croak "Bad deflate arg: $argname";
+        }
+    }
+
+    # Always announce support for this:
+    push @params, 'client-max-window-bits' if !$indicated_cmwb;
+
+    return join( '; ', 'permessage-deflate', @params );
+}
+
+sub _croak_bad_compression {
+    my $name = shift;
+
+    Carp::croak("Unknown compression name: $name");
+}
+
+sub _compression_to_ext {
+    my ($comp_in) = @_;
+
+    my @exts;
+
+    if (defined $comp_in) {
+        if (my $reftype = ref $comp_in) {
+            if ('ARRAY' ne $reftype) {
+                Carp::croak("`compression` must be a string or arrayref, not $comp_in");
+            }
+
+            for (my $a = 0; $a < @$comp_in; $a++) {
+                my $extname = $comp_in->[$a] or Carp::croak('Missing `compression` item!');
+
+                if ($extname eq 'deflate') {
+                    my $next = $comp_in->[1 + $a];
+                    if ($next && 'HASH' eq ref $next) {
+                        $a++;
+                        push @exts, _deflate_to_string(%$next);
+                    }
+                }
+                else {
+                    _croak_bad_compression($extname);
+                }
+            }
+        }
+        elsif ($comp_in eq 'deflate') {
+            push @exts, [ deflate => _deflate_to_string() ];
+        }
+        else {
+            _croak_bad_compression($comp_in);
+        }
+    }
+    elsif (Net::Libwebsockets::NLWS_LWS_HAS_PMD) {
+        push @exts, [ deflate => _deflate_to_string() ];
+    }
+    else {
+        return undef;
+    }
+
+    if (@exts && !Net::Libwebsockets::NLWS_LWS_HAS_PMD) {
+        Carp::croak "This Libwebsockets lacks WebSocket compression support";
+    }
+
+    return \@exts;
 }
 
 sub _validate_uint {

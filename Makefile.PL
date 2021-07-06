@@ -1,8 +1,15 @@
 
 #$_ = q<> for my ($cflags, $lflags);
 
-my $cflags = q<-I/Users/felipe/code/libwebsockets/build/include>;
-#my $lflags = '-L/Users/felipe/code/libwebsockets/build/lib -lwebsockets';
+my @cflags = qw<
+    -I/Users/felipe/code/libwebsockets/build/include
+>;
+
+my @lflags = qw(
+    -Wl,-rpath,/Users/felipe/code/libwebsockets/build/lib
+    -L/Users/felipe/code/libwebsockets/build/lib
+    -lwebsockets
+);
 
 use Devel::PPPort;
 
@@ -12,16 +19,12 @@ use Config;
 use File::Temp;
 use File::Spec;
 
-my $lws_has_deflate = 1;
-my @lflags = qw(-Wl,-rpath,/Users/felipe/code/libwebsockets/build/lib -L/Users/felipe/code/libwebsockets/build/lib -lwebsockets);
-@lflags = (
-    '-Wl,-rpath,/Users/felipe/code/libwebsockets/build/lib -L/Users/felipe/code/libwebsockets/build/lib -lwebsockets',
-);
+
 
 use ExtUtils::CChecker;
 
-my $cc = ExtUtils::CChecker->new();
-$cc->push_extra_compiler_flags($cflags);
+my $cc = ExtUtils::CChecker->new( quiet => 0 );
+$cc->push_extra_compiler_flags(@cflags);
 $cc->push_extra_linker_flags(@lflags);
 
 print "Does your LWS support permessage-deflate?\n";
@@ -55,11 +58,11 @@ WriteMakefile(
     AUTHOR         => [
         'Felipe Gasper (FELIPE)',
     ],
-    LIBS              => [@lflags], # e.g., '-lm'
+    LIBS              => ["@lflags"], # e.g., '-lm'
     DEFINE            => $lws_has_deflate ? '-DNLWS_LWS_HAS_PMD' : '',
     LICENSE           => "perl_5",
 
-    INC => "-Wall -I. --std=c99 $cflags",
+    INC => "-Wall -I. --std=c99 @cflags",
 
     # An awful hack to accommodate the fact that otherwise
     # the created Makefile expects xshelper.o to be in the base dir:
