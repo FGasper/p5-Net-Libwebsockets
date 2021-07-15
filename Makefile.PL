@@ -1,14 +1,13 @@
-
-#$_ = q<> for my ($cflags, $lflags);
+use strict;
+use warnings;
 
 my @extra_cflags = qw<
     -I/Users/felipe/code/libwebsockets/build/include
 >;
 
-my @extra_lflags = qw(
+my @extra_lddlflags = qw(
     -Wl,-rpath,/Users/felipe/code/libwebsockets/build/lib
     -L/Users/felipe/code/libwebsockets/build/lib
-    -lwebsockets
 );
 
 use Config;
@@ -18,26 +17,32 @@ use ExtUtils::PkgConfig;
 
 my $PKG = 'libwebsockets';
 
-#if (!ExtUtils::PkgConfig->exists($PKG)) {
-#    die "Your pkg-config can’t find $PKG; aborting …\n";
-#}
-#
-#my $pc_cflags = ExtUtils::PkgConfig->cflags($PKG);
-#my $pc_libs = ExtUtils::PkgConfig->libs($PKG);
+if (!ExtUtils::PkgConfig->exists($PKG)) {
+    die "Your pkg-config can’t find $PKG; aborting …\n";
+}
 
-my @cflags = (
-#    split( m< >, $pc_cflags ),
-    @extra_cflags,
+my @pc_cflags = split m< >, ExtUtils::PkgConfig->cflags($PKG);
+
+my @libs = split m< >, ExtUtils::PkgConfig->libs_only_l($PKG);
+
+my @pc_lddlflags = map { split m< >, $_ } (
+    ExtUtils::PkgConfig->libs_only_L($PKG),
+    ExtUtils::PkgConfig->libs_only_other($PKG),
 );
 
-my @lflags = (
-#    split( m< >, $pc_libs ),
-    @extra_lflags,
+my @cflags = (
+    @extra_cflags,
+    @pc_cflags,
+);
+
+my @lddlflags = (
+    @extra_lddlflags,
+    @pc_lddlflags,
 );
 
 my $cc = ExtUtils::CChecker->new( quiet => 0 );
 $cc->push_extra_compiler_flags(@cflags);
-$cc->push_extra_linker_flags(@lflags);
+$cc->push_extra_linker_flags(@lddlflags, @libs);
 
 {
     print "Does your LWS support custom event loops?\n";
@@ -94,7 +99,7 @@ WriteMakefile(
     AUTHOR         => [
         'Felipe Gasper (FELIPE)',
     ],
-    LIBS              => ["@lflags"], # e.g., '-lm'
+    LIBS              => ["@libs"], # e.g., '-lm'
     DEFINE            => $lws_has_deflate ? '-DNLWS_LWS_HAS_PMD' : '',
     LICENSE           => "perl_5",
 
@@ -103,6 +108,8 @@ WriteMakefile(
     # An awful hack to accommodate the fact that otherwise
     # the created Makefile expects xshelper.o to be in the base dir:
     CCFLAGS => "$Config{'ccflags'} -o \$@",
+
+    LDDLFLAGS => "@extra_lddlflags $Config{'lddlflags'}",
 
     OBJECT => [
         '$(BASEEXT)$(OBJ_EXT)',
