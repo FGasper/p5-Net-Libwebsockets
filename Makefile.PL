@@ -1,19 +1,19 @@
 use strict;
 use warnings;
 
-my @extra_cflags = qw<
-    -I/Users/felipe/code/libwebsockets/build/include
->;
-
-my @extra_lddlflags = qw(
-    -Wl,-rpath,/Users/felipe/code/libwebsockets/build/lib
-    -L/Users/felipe/code/libwebsockets/build/lib
-);
-
 use Config;
 
 use ExtUtils::CChecker;
 use ExtUtils::PkgConfig;
+
+my @extra_cflags = (
+    '-I/Users/felipe/code/libwebsockets/build/include',
+);
+
+my @extra_lddlflags = (
+    '-Wl,-rpath,/Users/felipe/code/libwebsockets/build/lib',
+    '-L/Users/felipe/code/libwebsockets/build/lib',
+);
 
 my $PKG = 'libwebsockets';
 
@@ -25,7 +25,7 @@ my @pc_cflags = split m< >, ExtUtils::PkgConfig->cflags($PKG);
 
 my @libs = split m< >, ExtUtils::PkgConfig->libs_only_l($PKG);
 
-my @pc_lddlflags = map { split m< >, $_ } (
+my @pc_lddlflags = map { split m< > } (
     ExtUtils::PkgConfig->libs_only_L($PKG),
     ExtUtils::PkgConfig->libs_only_other($PKG),
 );
@@ -45,7 +45,7 @@ $cc->push_extra_compiler_flags(@cflags);
 $cc->push_extra_linker_flags(@lddlflags, @libs);
 
 {
-    print "Does your LWS support custom event loops?\n";
+    print "Verify LWS custom event loop support ...\n";
 
     my $has_event_c = <<END;
     #include <libwebsockets.h>
@@ -56,12 +56,10 @@ $cc->push_extra_linker_flags(@lddlflags, @libs);
     }
 END
 
-    if ( $cc->try_compile_run($has_event_c) ) {
-        print "... yes! (Whew ...)\n";
-    }
-    else {
-        die "... apparently not. :(\n";
-    }
+    $cc->assert_compile_run(
+        source => $has_event_c,
+        diag => "Custom event loop support verification failed; is your Libwebsockets recent enough?",
+    );
 }
 
 my $lws_has_deflate = do {
@@ -99,7 +97,7 @@ WriteMakefile(
     AUTHOR         => [
         'Felipe Gasper (FELIPE)',
     ],
-    LIBS              => ["@libs"], # e.g., '-lm'
+    LIBS              => ["@libs"],
     DEFINE            => $lws_has_deflate ? '-DNLWS_LWS_HAS_PMD' : '',
     LICENSE           => "perl_5",
 
