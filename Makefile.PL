@@ -18,12 +18,12 @@ use ExtUtils::PkgConfig;
 
 my $PKG = 'libwebsockets';
 
-if (!ExtUtils::PkgConfig->exists($PKG)) {
-    die "Your pkg-config can’t find $PKG; aborting …\n";
-}
-
-my $pc_cflags = ExtUtils::PkgConfig->cflags($PKG);
-my $pc_libs = ExtUtils::PkgConfig->libs($PKG);
+#if (!ExtUtils::PkgConfig->exists($PKG)) {
+#    die "Your pkg-config can’t find $PKG; aborting …\n";
+#}
+#
+#my $pc_cflags = ExtUtils::PkgConfig->cflags($PKG);
+#my $pc_libs = ExtUtils::PkgConfig->libs($PKG);
 
 my @cflags = (
 #    split( m< >, $pc_cflags ),

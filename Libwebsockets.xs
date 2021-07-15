@@ -80,7 +80,9 @@ void _on_ws_close (pTHX_ my_perl_context_t* my_perl_context, uint16_t code, size
         newSVpvn((const char *) reason, reasonlen),
     };
 
-    AV* code_reason = av_make( sizeof(args), args );
+    unsigned numargs = sizeof(args) / sizeof(*args);
+
+    AV* code_reason = av_make( numargs, args );
 
     SV* arg = newRV_noinc((SV*) code_reason);
 
@@ -474,29 +476,23 @@ PROTOTYPES: DISABLE
 void
 _new (SV* hostname, int port, SV* path, SV* compression_sv, SV* subprotocols_sv, SV* headers_ar, int tls_opts, unsigned ping_interval, unsigned ping_timeout, SV* loop_obj, SV* connected_d)
     CODE:
-        lws_set_log_level( LLL_USER | LLL_ERR | LLL_WARN | LLL_NOTICE | LLL_DEBUG | LLL_PARSER | LLL_HEADER | LLL_INFO, NULL );
-        //lws_set_log_level( LLL_USER | LLL_ERR | LLL_WARN | LLL_NOTICE | LLL_PARSER | LLL_HEADER | LLL_INFO, NULL );
+        //lws_set_log_level( LLL_USER | LLL_ERR | LLL_WARN | LLL_NOTICE | LLL_DEBUG | LLL_PARSER | LLL_HEADER | LLL_INFO, NULL );
+        lws_set_log_level( LLL_USER | LLL_ERR | LLL_WARN | LLL_NOTICE | LLL_PARSER | LLL_HEADER | LLL_INFO, NULL );
 
         assert(SvROK(compression_sv));
         assert(SVt_PVAV == SvTYPE(SvRV(compression_sv)));
 
-    sv_dump(compression_sv);
-    sv_dump(hostname);
-    fprintf(stderr, "port: %d\n", port);
-    sv_dump(path);
         AV* compressions_av = (AV*) SvRV(compression_sv);
         SSize_t compressions_len = 1 + av_top_index(compressions_av);
 
         struct lws_extension* extensions_p;
 
         if (NLWS_LWS_HAS_EXTENSIONS) {
-    fprintf(stderr, "has extensions\n");
             Newxz(extensions_p, 1 + compressions_len, struct lws_extension);
 
             _populate_extensions(aTHX_ extensions_p, compressions_av);
         }
         else {
-    fprintf(stderr, "has NO extensions\n");
             extensions_p = NULL;
         }
 
@@ -527,7 +523,6 @@ _new (SV* hostname, int port, SV* path, SV* compression_sv, SV* subprotocols_sv,
             if (extensions_p) Safefree(extensions_p);
             croak("lws init failed");
         }
-    fprintf(stderr, "init OK\n");
 
         my_perl_context_t* my_perl_context;
         Newxz(my_perl_context, 1, my_perl_context_t); // TODO clean up
@@ -577,7 +572,6 @@ _new (SV* hostname, int port, SV* path, SV* compression_sv, SV* subprotocols_sv,
             lws_context_destroy(context);
             croak("lws connect failed");
         }
-    fprintf(stderr, "connect OK\n");
 
         SvREFCNT_inc(connected_d);
         SvREFCNT_inc(headers_ar);
@@ -715,8 +709,8 @@ close (SV* self_sv, U16 code=LWS_CLOSE_STATUS_NOSTATUS, SV* reason_sv=NULL)
 void
 DESTROY (SV* self_sv)
     CODE:
-        courier_t* courier = xsh_svrv_to_ptr(aTHX_ self_sv);
         warn("xxxxxx destroying %" SVf "\n", self_sv);
+        courier_t* courier = xsh_svrv_to_ptr(aTHX_ self_sv);
 
         if (IS_GLOBAL_DESTRUCTION && (getpid() == courier->pid)) {
             warn("Destroying %" SVf " at global destruction!\n", self_sv);
