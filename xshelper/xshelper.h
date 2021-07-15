@@ -19,7 +19,16 @@ void xsh_call_sv_trap_void (pTHX_ SV* cbref, SV** args, const char *warnprefix);
 
 //----------------------------------------------------------------------
 
+/*
+    Returns a boolean that indicates whether the byte string in `sv`
+    matches `b`. Croaks if `sv` is a reference.
+*/
 bool xsh_sv_streq (pTHX_ SV* sv, const char* b);
+
+/*
+    Like SvPVbyte_nolen but croaks if `sv`’s string contains a NUL byte.
+*/
+char* xsh_sv_to_str (pTHX_ SV* sv);
 
 //----------------------------------------------------------------------
 

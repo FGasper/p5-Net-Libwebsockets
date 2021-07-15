@@ -2,8 +2,11 @@
 
 #include "xshelper.h"
 
+#define _CROAK_STRINGIFY_REFERENCE() \
+    croak("Cannot stringify a reference!")
+
 void* xsh_svrv_to_ptr (pTHX_ SV* svrv) {
-    return (void *) (intptr_t) SvUV( SvRV(svrv) );
+    return (void *) (uintptr_t) SvUV( SvRV(svrv) );
 }
 
 SV* xsh_ptr_to_svrv (pTHX_ void* ptr, HV* stash) {
@@ -29,6 +32,19 @@ bool xsh_sv_streq (pTHX_ SV* sv, const char* b) {
     }
 
     return false;
+}
+
+char* xsh_sv_to_str (pTHX_ SV* sv) {
+    if (SvROK(sv)) _CROAK_STRINGIFY_REFERENCE();
+
+    char *str = SvPVbyte_nolen(sv);
+
+    size_t len = strnlen(str, 1 + SvCUR(sv));
+    if (len != SvCUR(sv)) {
+        croak("Cannot convert scalar to C string (NUL byte detected, offset %zu)", len);
+    }
+
+    return str;
 }
 
 /* ---------------------------------------------------------------------- */

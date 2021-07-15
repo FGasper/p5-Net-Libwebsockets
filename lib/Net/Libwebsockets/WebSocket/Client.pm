@@ -9,6 +9,105 @@ use URI::Split ();
 use Net::Libwebsockets ();
 use Promise::XS ();
 
+#----------------------------------------------------------------------
+
+=head1 FUNCTIONS
+
+=head2 promise($courier) = connect( %OPTS )
+
+Starts a WebSocket connection. Returns a promise that, on success,
+resolves to a L<Net::Libwebsockets::WebSocket::Courier> instance.
+
+Required %OPTS are:
+
+=over
+
+=item * C<url> - The target URL (e.g., C<ws://echo.websocket.org>)
+
+=item * C<event> - The event loop interface to use.
+Recognized values are:
+
+=over
+
+=item * C<AnyEvent> - to use L<AnyEvent>
+
+=item * A two-member arrayref of C<[ 'IOAsync', $loop ]> where C<$loop>
+is a L<IO::Async::Loop> instance.
+
+=back
+
+=back
+
+Optional %OPTS are:
+
+=over
+
+=item * C<tls> - bitmask of TLS connection options, e.g.,
+Net::Libwebsockets::LCCSCF_ALLOW_SELFSIGNED. Should be a mask of zero or
+more of:
+
+=over
+
+=item * LCCSCF_ALLOW_SELFSIGNED
+
+=item * LCCSCF_SKIP_SERVER_CERT_HOSTNAME_CHECK
+
+=item * LCCSCF_ALLOW_EXPIRED
+
+=item * LCCSCF_ALLOW_INSECURE
+
+=back
+
+=item * C<subprotocols> - arrayref of subprotocols to send
+
+=item * C<compression> - One of:
+
+=over
+
+=item * A simple string that names the compression type to use.
+Currently C<deflate> is the only accepted value; this indicates
+permessage-deflate in its default configuration.
+
+=item * An arrayref of compression setups to try. Each setup is
+a compression name (again, only C<deflate> is accepted) and an optional
+hashref of attributes.
+
+For permessage-deflate those attributes can be any or all of:
+
+=over
+
+=item * C<local_context_mode> - either C<takeover> or C<no_takeover>
+
+=item * C<peer_context_mode> - ^^ ditto
+
+=item * C<local_max_window_bits>
+
+=item * C<peer_max_window_bits>
+
+=back
+
+See permessage-deflate’s specification for more about these options.
+
+If this option is not given, we’ll use the “best default” available;
+currently that means permessage-deflate in its default configuration if
+it’s available, or none if Libwebsockets lacks WebSocket compression
+support.
+
+=back
+
+=item * C<headers> - An arrayref of key-value pairs, e.g.,
+C<[ 'X-Foo' =E<gt> 'foo', 'X-Bar' =E<gt> 'bar' ]>.
+
+=item * C<ping_interval> - The amount of time (in seconds) between pings
+that we’ll send. Defaults to 30 seconds.
+
+=item * C<ping_timeout> - The amount of time (in seconds) before
+we drop the connection. Defaults to 4m59s.
+
+=back
+
+=cut
+
 my @_REQUIRED = qw( url event );
 my %_KNOWN = map { $_ => 1 } (
     @_REQUIRED,
@@ -223,9 +322,6 @@ sub _compression_to_ext {
     }
     elsif (Net::Libwebsockets::NLWS_LWS_HAS_PMD) {
         push @exts, [ deflate => _deflate_to_string() ];
-    }
-    else {
-        return undef;
     }
 
     if (@exts && !Net::Libwebsockets::NLWS_LWS_HAS_PMD) {

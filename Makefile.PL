@@ -1,52 +1,88 @@
 
 #$_ = q<> for my ($cflags, $lflags);
 
-my @cflags = qw<
+my @extra_cflags = qw<
     -I/Users/felipe/code/libwebsockets/build/include
 >;
 
-my @lflags = qw(
+my @extra_lflags = qw(
     -Wl,-rpath,/Users/felipe/code/libwebsockets/build/lib
     -L/Users/felipe/code/libwebsockets/build/lib
     -lwebsockets
 );
 
-use Devel::PPPort;
-
-Devel::PPPort::WriteFile();
-
 use Config;
-use File::Temp;
-use File::Spec;
-
-
 
 use ExtUtils::CChecker;
+use ExtUtils::PkgConfig;
+
+my $PKG = 'libwebsockets';
+
+if (!ExtUtils::PkgConfig->exists($PKG)) {
+    die "Your pkg-config can’t find $PKG; aborting …\n";
+}
+
+my $pc_cflags = ExtUtils::PkgConfig->cflags($PKG);
+my $pc_libs = ExtUtils::PkgConfig->libs($PKG);
+
+my @cflags = (
+#    split( m< >, $pc_cflags ),
+    @extra_cflags,
+);
+
+my @lflags = (
+#    split( m< >, $pc_libs ),
+    @extra_lflags,
+);
 
 my $cc = ExtUtils::CChecker->new( quiet => 0 );
 $cc->push_extra_compiler_flags(@cflags);
 $cc->push_extra_linker_flags(@lflags);
 
-print "Does your LWS support permessage-deflate?\n";
+{
+    print "Does your LWS support custom event loops?\n";
 
-my $has_deflate_c = <<END;
-#include <libwebsockets.h>
+    my $has_event_c = <<END;
+    #include <libwebsockets.h>
 
-void * funcptr = lws_extension_callback_pm_deflate;
-
-int main() {
-    return 0;
-}
+    int main() {
+        int foo = LWS_EV_READ;
+        return 0;
+    }
 END
 
-my $lws_has_deflate = $cc->try_compile_run($has_deflate_c);
+    if ( $cc->try_compile_run($has_event_c) ) {
+        print "... yes! (Whew ...)\n";
+    }
+    else {
+        die "... apparently not. :(\n";
+    }
+}
 
-if ($lws_has_deflate) {
-    print "... yes!\n";
-}
-else {
-    print "... apparently not. :(\n";
-}
+my $lws_has_deflate = do {
+    print "Does your LWS support permessage-deflate?\n";
+
+    my $has_deflate_c = <<END;
+    #include <libwebsockets.h>
+
+    void * funcptr = lws_extension_callback_pm_deflate;
+
+    int main() {
+        return 0;
+    }
+END
+
+    my $lws_has_deflate = $cc->try_compile_run($has_deflate_c);
+
+    if ($lws_has_deflate) {
+        print "... yes!\n";
+    }
+    else {
+        print "... apparently not. :(\n";
+    }
+
+    $lws_has_deflate;
+};
 
 use ExtUtils::MakeMaker;
 # See lib/ExtUtils/MakeMaker.pm for details of how to influence
@@ -80,7 +116,8 @@ WriteMakefile(
 
         # In order to specify OBJECT as an array.
         'ExtUtils::MakeMaker' => 6.84,
-        'Devel::PPPort' => 0,
+        'ExtUtils::CChecker' => 0,
+        'ExtUtils::PkgConfig' => 0,
     },
 
     META_MERGE => {

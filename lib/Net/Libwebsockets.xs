@@ -362,7 +362,7 @@ void _courier_send( pTHX_ courier_t* courier, U8* buf, STRLEN len, enum lws_writ
 }
 
 static inline void _lws_service_fd (pTHX_ UV lws_context_uv, int fd, short event) {
-    intptr_t lws_context_int = lws_context_uv;
+    uintptr_t lws_context_int = lws_context_uv;
 
     struct lws_context *context = (void *) lws_context_int;
 
@@ -433,7 +433,7 @@ lws_service_fd_write( UV lws_context_uv, int fd )
 int
 get_timeout( UV lws_context_uv )
     CODE:
-        intptr_t lws_context_int = lws_context_uv;
+        uintptr_t lws_context_int = lws_context_uv;
 
         struct lws_context *context = (void *) lws_context_int;
 

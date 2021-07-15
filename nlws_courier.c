@@ -27,30 +27,27 @@ static inline SV* _new_deferred_sv(pTHX) {
 }
 
 courier_t* nlws_create_courier (pTHX_ struct lws *wsi) {
-    courier_t* courier;
-    Newx(courier, 1, courier_t);
+    struct lws_ring *ring = lws_ring_create(
+        sizeof(frame_t),
+        RING_DEPTH,
+        nlws_destroy_frame
+    );
 
-    courier->wsi = wsi;
-
-    courier->on_text_count = 0;
-    courier->on_text = NULL;
-    courier->on_binary_count = 0;
-    courier->on_binary = NULL;
-    courier->close_yn = false;
-
-    courier->pid = getpid();
-
-    courier->ring = lws_ring_create(sizeof(frame_t), RING_DEPTH, nlws_destroy_frame);
-    courier->consume_pending_count = 0;
-
-    courier->pauses = 0;
-
-    if (!courier->ring) {
-        Safefree(courier);
+    if (!ring) {
         croak("lws_ring_create() failed!");
     }
 
-    courier->done_d = _new_deferred_sv(aTHX);
+    courier_t* courier;
+    Newx(courier, 1, courier_t);
+
+    *courier = (courier_t) {
+        .wsi = wsi,
+        .pid = getpid(),
+        .ring = ring,
+        .done_d = _new_deferred_sv(aTHX),
+
+        // Everything else is initialized to 0/NULL.
+    };
 
     return courier;
 }
