@@ -114,10 +114,10 @@ my $url = $ARGV[0] or die "Need URL! (Try: ws://echo.websocket.org)\n";
 
             return $ws->done_p();
         },
-    )->finally( sub {
-#        $loop->stop();
-        $cv->();
-    } );
+    )->then(
+        $cv,
+        sub { $cv->croak(@_) },
+    );
 
 #    $loop->run();
     $cv->recv();
