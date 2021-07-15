@@ -474,8 +474,8 @@ PROTOTYPES: DISABLE
 void
 _new (SV* hostname, int port, SV* path, SV* compression_sv, SV* subprotocols_sv, SV* headers_ar, int tls_opts, unsigned ping_interval, unsigned ping_timeout, SV* loop_obj, SV* connected_d)
     CODE:
-        //lws_set_log_level( LLL_USER | LLL_ERR | LLL_WARN | LLL_NOTICE | LLL_DEBUG | LLL_PARSER | LLL_HEADER | LLL_INFO, NULL );
-        lws_set_log_level( LLL_USER | LLL_ERR | LLL_WARN | LLL_NOTICE | LLL_PARSER | LLL_HEADER | LLL_INFO, NULL );
+        lws_set_log_level( LLL_USER | LLL_ERR | LLL_WARN | LLL_NOTICE | LLL_DEBUG | LLL_PARSER | LLL_HEADER | LLL_INFO, NULL );
+        //lws_set_log_level( LLL_USER | LLL_ERR | LLL_WARN | LLL_NOTICE | LLL_PARSER | LLL_HEADER | LLL_INFO, NULL );
 
         assert(SvROK(compression_sv));
         assert(SVt_PVAV == SvTYPE(SvRV(compression_sv)));
