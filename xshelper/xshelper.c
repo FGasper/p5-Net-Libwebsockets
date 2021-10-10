@@ -2,14 +2,10 @@
 
 #include "xshelper.h"
 
-#define _CROAK_STRINGIFY_REFERENCE() \
-    croak("Cannot stringify a reference!")
+#define _CROAK_STRINGIFY_REFERENCE(sv) \
+    croak("%" SVf " given where string expected!", sv)
 
-void* xsh_svrv_to_ptr (pTHX_ SV* svrv) {
-    return (void *) (uintptr_t) SvUV( SvRV(svrv) );
-}
-
-SV* xsh_ptr_to_svrv (pTHX_ void* ptr, HV* stash) {
+SV* _MY_xsh_ptr_to_svrv (pTHX_ void* ptr, HV* stash) {
     SV* referent = newSVuv( PTR2UV(ptr) );
     SV* retval = newRV_noinc(referent);
     sv_bless(retval, stash);
@@ -20,7 +16,7 @@ SV* xsh_ptr_to_svrv (pTHX_ void* ptr, HV* stash) {
 /* ---------------------------------------------------------------------- */
 
 bool xsh_sv_streq (pTHX_ SV* sv, const char* b) {
-    if (SvROK(sv)) croak("%" SVf " given where string expected!", sv);
+    if (SvROK(sv)) _CROAK_STRINGIFY_REFERENCE(sv);
 
     if (SvOK(sv)) {
         STRLEN alen;
@@ -34,10 +30,10 @@ bool xsh_sv_streq (pTHX_ SV* sv, const char* b) {
     return false;
 }
 
-char* xsh_sv_to_str (pTHX_ SV* sv) {
-    if (SvROK(sv)) _CROAK_STRINGIFY_REFERENCE();
+char* _MY_xsh_sv_to_str (pTHX_ SV* sv, bool is_utf8) {
+    if (SvROK(sv)) _CROAK_STRINGIFY_REFERENCE(sv);
 
-    char *str = SvPVbyte_nolen(sv);
+    char *str = is_utf8 ? SvPVutf8_nolen(sv) : SvPVbyte_nolen(sv);
 
     size_t len = strnlen(str, 1 + SvCUR(sv));
     if (len != SvCUR(sv)) {
@@ -45,6 +41,34 @@ char* xsh_sv_to_str (pTHX_ SV* sv) {
     }
 
     return str;
+}
+
+UV xsh_sv_to_uv (pTHX_ SV* sv) {
+    if (SvROK(sv)) _CROAK_STRINGIFY_REFERENCE(sv);
+
+    if (SvUOK(sv)) return SvUV(sv);
+
+    UV myuv = SvUV(sv);
+
+    SV* sv2 = newSVuv(myuv);
+
+    if (sv_eq(sv, sv2)) return myuv;
+
+    croak("`%" SVf "` given where unsigned integer expected!", sv);
+}
+
+IV xsh_sv_to_iv (pTHX_ SV* sv) {
+    if (SvROK(sv)) _CROAK_STRINGIFY_REFERENCE(sv);
+
+    if (SvIOK(sv)) return SvIV(sv);
+
+    IV myiv = SvIV(sv);
+
+    SV* sv2 = newSViv(myiv);
+
+    if (sv_eq(sv, sv2)) return myiv;
+
+    croak("`%" SVf "` given where integer expected!", sv);
 }
 
 /* ---------------------------------------------------------------------- */

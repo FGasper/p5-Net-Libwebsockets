@@ -193,7 +193,7 @@ net_lws_wsclient_callback(
 
             int failed = lws_add_http_header_by_name(
                 wsi,
-                (const U8*) xsh_sv_to_str(aTHX_ *key),
+                (const U8*) xsh_sv_to_str(*key),
                 valuestr,
                 valuelen,
                 p, end
@@ -213,7 +213,7 @@ net_lws_wsclient_callback(
 
         my_perl_context->courier = courier;
 
-        SV* courier_sv = xsh_ptr_to_svrv(aTHX_ courier, gv_stashpv(COURIER_CLASS, FALSE));
+        SV* courier_sv = xsh_ptr_to_svrv(courier, gv_stashpv(COURIER_CLASS, FALSE));
         my_perl_context->courier_sv = courier_sv;
 
         _finish_deferred_sv( aTHX_ &my_perl_context->connect_d, "resolve", newSVsv(courier_sv) );
@@ -409,7 +409,7 @@ void _populate_extensions (pTHX_ struct lws_extension* extensions, AV* compressi
         assert(*extn_name_p);
         assert(SvOK(*extn_name_p));
 
-        if (!strEQ("deflate", SvPVbyte_nolen(*extn_name_p)) ) {
+        if (!strEQ("deflate", xsh_sv_to_str(*extn_name_p)) ) {
             croak("Bad extension name: %" SVf, *extn_name_p);
         }
 
@@ -421,7 +421,7 @@ void _populate_extensions (pTHX_ struct lws_extension* extensions, AV* compressi
         extensions[c] = (struct lws_extension) {
             .name = "permessage-deflate",
             .callback = lws_extension_callback_pm_deflate,
-            .client_offer = SvPVbyte_nolen(*client_offer_p),
+            .client_offer = xsh_sv_to_str(*client_offer_p),
         };
     }
 #endif
@@ -505,7 +505,7 @@ _new (SV* hostname, int port, SV* path, SV* compression_sv, SV* subprotocols_sv,
             .options = LWS_SERVER_OPTION_DO_SSL_GLOBAL_INIT
                         | LWS_SERVER_OPTION_VALIDATE_UTF8,
 
-            //.extensions = extensions_p,
+            .extensions = extensions_p,
 
             .event_lib_custom = &evlib_custom,
 
@@ -548,14 +548,14 @@ _new (SV* hostname, int port, SV* path, SV* compression_sv, SV* subprotocols_sv,
             },
         };
 
-        const char* hostname_str = xsh_sv_to_str(aTHX_ hostname);
+        const char* hostname_str = xsh_sv_to_str(hostname);
 
         struct lws_client_connect_info client = {
             .context = context,
             .port = port,
 
             .address = hostname_str,
-            .path = xsh_sv_to_str(aTHX_ path),
+            .path = xsh_sv_to_str(path),
             .host = hostname_str,
             .origin = hostname_str,
             .ssl_connection = tls_opts,
@@ -564,7 +564,7 @@ _new (SV* hostname, int port, SV* path, SV* compression_sv, SV* subprotocols_sv,
             // The callback’s `user`:
             .userdata = my_perl_context,
 
-            .protocol = SvOK(subprotocols_sv) ? xsh_sv_to_str(aTHX_ subprotocols_sv) : NULL,
+            .protocol = SvOK(subprotocols_sv) ? xsh_sv_to_str( subprotocols_sv) : NULL,
         };
 
         if (!lws_client_connect_via_info(&client)) {
@@ -585,9 +585,9 @@ PROTOTYPES: DISABLE
 void
 DESTROY (SV* self_sv)
     CODE:
-        pause_t* my_pause = xsh_svrv_to_ptr(aTHX_ self_sv);
+        pause_t* my_pause = xsh_svrv_to_ptr(self_sv);
 
-        courier_t* courier = xsh_svrv_to_ptr(aTHX_ my_pause->courier_sv);
+        courier_t* courier = xsh_svrv_to_ptr(my_pause->courier_sv);
 
         courier->pauses--;
 
@@ -608,7 +608,7 @@ PROTOTYPES: DISABLE
 void
 on_text (SV* self_sv, SV* cbref)
     CODE:
-        courier_t* courier = xsh_svrv_to_ptr(aTHX_ self_sv);
+        courier_t* courier = xsh_svrv_to_ptr(self_sv);
 
         SvREFCNT_inc(cbref);
 
@@ -619,7 +619,7 @@ on_text (SV* self_sv, SV* cbref)
 void
 on_binary (SV* self_sv, SV* cbref)
     CODE:
-        courier_t* courier = xsh_svrv_to_ptr(aTHX_ self_sv);
+        courier_t* courier = xsh_svrv_to_ptr(self_sv);
 
         SvREFCNT_inc(cbref);
 
@@ -630,7 +630,7 @@ on_binary (SV* self_sv, SV* cbref)
 SV*
 done_p (SV* self_sv)
     CODE:
-        courier_t* courier = xsh_svrv_to_ptr(aTHX_ self_sv);
+        courier_t* courier = xsh_svrv_to_ptr(self_sv);
 
         RETVAL = xsh_call_object_method_scalar(aTHX_ courier->done_d, "promise", NULL);
 
@@ -640,7 +640,7 @@ done_p (SV* self_sv)
 void
 send_text (SV* self_sv, SV* payload_sv)
     CODE:
-        courier_t* courier = xsh_svrv_to_ptr(aTHX_ self_sv);
+        courier_t* courier = xsh_svrv_to_ptr(self_sv);
 
         STRLEN len;
         U8* buf = (U8*) SvPVutf8(payload_sv, len);
@@ -650,7 +650,7 @@ send_text (SV* self_sv, SV* payload_sv)
 void
 send_binary (SV* self_sv, SV* payload_sv)
     CODE:
-        courier_t* courier = xsh_svrv_to_ptr(aTHX_ self_sv);
+        courier_t* courier = xsh_svrv_to_ptr(self_sv);
 
         STRLEN len;
         U8* buf = (U8*) SvPVbyte(payload_sv, len);
@@ -662,7 +662,7 @@ pause (SV* self_sv)
     CODE:
         if (GIMME_V == G_VOID) croak("Don’t call pause() in void context!");
 
-        courier_t* courier = xsh_svrv_to_ptr(aTHX_ self_sv);
+        courier_t* courier = xsh_svrv_to_ptr(self_sv);
 
         pause_t* my_pause;
         Newx(my_pause, 1, pause_t);
@@ -676,7 +676,7 @@ pause (SV* self_sv)
 
         courier->pauses++;
 
-        RETVAL = xsh_ptr_to_svrv(aTHX_ my_pause, gv_stashpv(PAUSE_CLASS, FALSE));
+        RETVAL = xsh_ptr_to_svrv(my_pause, gv_stashpv(PAUSE_CLASS, FALSE));
 
     OUTPUT:
         RETVAL
@@ -684,7 +684,7 @@ pause (SV* self_sv)
 void
 close (SV* self_sv, U16 code=LWS_CLOSE_STATUS_NOSTATUS, SV* reason_sv=NULL)
     CODE:
-        courier_t* courier = xsh_svrv_to_ptr(aTHX_ self_sv);
+        courier_t* courier = xsh_svrv_to_ptr(self_sv);
 
         if (reason_sv && SvOK(reason_sv)) {
             U8* reason = (U8*) SvPVutf8(reason_sv, courier->close_reason_length);
@@ -709,8 +709,7 @@ close (SV* self_sv, U16 code=LWS_CLOSE_STATUS_NOSTATUS, SV* reason_sv=NULL)
 void
 DESTROY (SV* self_sv)
     CODE:
-        warn("xxxxxx destroying %" SVf "\n", self_sv);
-        courier_t* courier = xsh_svrv_to_ptr(aTHX_ self_sv);
+        courier_t* courier = xsh_svrv_to_ptr(self_sv);
 
         if (IS_GLOBAL_DESTRUCTION && (getpid() == courier->pid)) {
             warn("Destroying %" SVf " at global destruction!\n", self_sv);

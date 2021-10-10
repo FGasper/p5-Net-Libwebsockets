@@ -32,7 +32,7 @@ Recognized values are:
 =item * C<AnyEvent> - to use L<AnyEvent>
 
 =item * A two-member arrayref of C<[ 'IOAsync', $loop ]> where C<$loop>
-is a L<IO::Async::Loop> instance.
+is an L<IO::Async::Loop> instance.
 
 =back
 
@@ -48,13 +48,13 @@ more of:
 
 =over
 
-=item * LCCSCF_ALLOW_SELFSIGNED
+=item * Net::Libwebsockets::LCCSCF_ALLOW_SELFSIGNED
 
-=item * LCCSCF_SKIP_SERVER_CERT_HOSTNAME_CHECK
+=item * Net::Libwebsockets::LCCSCF_SKIP_SERVER_CERT_HOSTNAME_CHECK
 
-=item * LCCSCF_ALLOW_EXPIRED
+=item * Net::Libwebsockets::LCCSCF_ALLOW_EXPIRED
 
-=item * LCCSCF_ALLOW_INSECURE
+=item * Net::Libwebsockets::LCCSCF_ALLOW_INSECURE
 
 =back
 

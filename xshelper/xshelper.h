@@ -21,27 +21,52 @@ void xsh_call_sv_trap_void (pTHX_ SV* cbref, SV** args, const char *warnprefix);
 
 /*
     Returns a boolean that indicates whether the byte string in `sv`
-    matches `b`. Croaks if `sv` is a reference.
+    matches `b`. `b` is assumed to be NUL-terminated.
+
+    Croaks if `sv` is a reference.
 */
 bool xsh_sv_streq (pTHX_ SV* sv, const char* b);
 
 /*
-    Like SvPVbyte_nolen but croaks if `sv`’s string contains a NUL byte.
+    Like SvPVbyte_nolen but croaks if `sv`’s string contains a NUL byte
+    or if `sv` is a reference.
 */
-char* xsh_sv_to_str (pTHX_ SV* sv);
+#define xsh_sv_to_str(sv) _MY_xsh_sv_to_str(aTHX_ sv, false)
+char* _MY_xsh_sv_to_str (pTHX_ SV* sv, bool is_utf8);
+
+/*
+    Like SvPVutf8_nolen but croaks if `sv`’s string contains a NUL byte
+    or if `sv` is a reference.
+*/
+#define xsh_sv_to_utf8_str(sv) _MY_xsh_sv_to_str(aTHX_ sv, true)
+
+/*
+    Like L<perlapi/SvUV> but croaks if `sv` isn’t a simple unsigned integer.
+*/
+UV xsh_sv_to_uv (pTHX_ SV* sv);
+
+/*
+    Like L<perlapi/SvIV> but croaks if `sv` isn’t a simple integer.
+*/
+IV xsh_sv_to_iv (pTHX_ SV* sv);
 
 //----------------------------------------------------------------------
 
 /*
     Creates a new SVRV that refers to ptr, blessed as a scalar reference.
 */
-SV* xsh_ptr_to_svrv (pTHX_ void* ptr, HV* stash);
+#define xsh_ptr_to_svrv(ptr, stash) \
+    _MY_xsh_ptr_to_svrv(aTHX_ ptr, stash)
+
+SV* _MY_xsh_ptr_to_svrv (pTHX_ void* ptr, HV* stash);
 
 /*
     Extracts a pointer value from an SVRV, which we assume to be
     a scalar reference. The reverse of xsh_ptr_to_svrv().
 */
-void* xsh_svrv_to_ptr (pTHX_ SV* svrv);
+#define xsh_svrv_to_ptr(svrv) ( \
+    (void *) SvUV(SvRV(svrv))   \
+)
 
 //----------------------------------------------------------------------
 

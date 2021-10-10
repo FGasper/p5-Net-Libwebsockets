@@ -6,7 +6,8 @@ use warnings;
 use parent 'Net::Libwebsockets::Loop';
 
 use lib '/Users/felipe/code/p5-IO-FDSaver/lib';
-use IO::FDSaver;
+
+use POSIX ();
 
 use feature 'current_sub';
 
@@ -51,7 +52,9 @@ sub _create_set_timer_cr {
 sub add_fd {
     my ($self, $fd) = @_;
 
-    my $fh = ($self->{'io_fdsaver'} ||= IO::FDSaver->new())->get_fh($fd);
+    my $perl_fd = POSIX::dup($fd) or die "dup(FD $fd): $!";
+
+    open( my $fh, '+<&=', $perl_fd ) or die "open(FD $perl_fd): $!";
 
     my $ctx = $self->{'lws_context'};
 
