@@ -12,6 +12,8 @@ use Net::Libwebsockets::WebSocket::Client ();
 
 use IO::SigGuard;
 
+$| = 1;
+
 my $url = $ARGV[0] or die "Need URL! (Try: ws://echo.websocket.org)\n";
 
 {
@@ -93,6 +95,11 @@ my $url = $ARGV[0] or die "Need URL! (Try: ws://echo.websocket.org)\n";
         },
     )->finally( sub {
         $loop->stop();
+
+        $loop->unwatch_io(
+            handle => \*STDIN,
+            on_read_ready => 1,
+        );
     } );
 
     $loop->run();

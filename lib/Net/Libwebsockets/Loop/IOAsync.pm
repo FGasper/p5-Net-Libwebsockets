@@ -5,8 +5,6 @@ use warnings;
 
 use parent 'Net::Libwebsockets::Loop';
 
-use lib '/Users/felipe/code/p5-IO-FDSaver/lib';
-
 use POSIX ();
 
 use feature 'current_sub';
@@ -130,15 +128,13 @@ sub remove_fd {
     # return omitted to save an op
 }
 
-sub DESTROY {
+sub _clear_timer {
     my ($self) = @_;
 
     if ($self->{'timer'}) {
         $self->{'loop'}->unwatch_time($self->{'timer'});
         undef $self->{'timer'};
     }
-
-    return $self->SUPER::DESTROY();
 }
 
 1;

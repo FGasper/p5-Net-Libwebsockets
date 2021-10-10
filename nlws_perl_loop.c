@@ -69,6 +69,7 @@ custom_io (struct lws *wsi, unsigned int flags) {
         else {
             method_name = "remove_from_fd";
         }
+fprintf(stderr, "\t%s FD %d\n", method_name, fd);
 
         SV* args[] = {
             newSViv(fd),
@@ -86,13 +87,15 @@ custom_io_close (struct lws *wsi) {
 
     net_lws_abstract_loop_t* myloop_p = lws_evlib_wsi_to_evlib_pt(wsi);
 
+    pTHX = myloop_p->aTHX;
+
+    SV* myloop_sv = myloop_p->perlobj;
+
+    xsh_call_object_method_void(aTHX_ myloop_sv, "on_close", NULL);
+
     int fd = lws_get_socket_fd(wsi);
 
     if (-1 != fd) {
-        pTHX = myloop_p->aTHX;
-
-        SV* myloop_sv = myloop_p->perlobj;
-
         SV* args[] = { newSViv(fd), NULL };
 
         xsh_call_object_method_void(aTHX_ myloop_sv, "remove_fd", args);

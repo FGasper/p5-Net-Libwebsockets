@@ -220,15 +220,6 @@ net_lws_wsclient_callback(
 
         } break;
 
-    case LWS_CALLBACK_WS_PEER_INITIATED_CLOSE:
-        _on_ws_close(aTHX_
-            my_perl_context,
-            ntohs( *(uint16_t *) in ),
-            len - sizeof(uint16_t),
-            sizeof(uint16_t) + in
-        );
-        break;
-
     case LWS_CALLBACK_CLIENT_WRITEABLE: {
         courier_t* courier = my_perl_context->courier;
 
@@ -260,7 +251,7 @@ net_lws_wsclient_callback(
         }
 
         // Don’t close until we’ve flushed the buffer:
-        else if (courier->close_yn) {
+        else if (courier->close_requested) {
             if (courier->close_status != LWS_CLOSE_STATUS_NOSTATUS) {
                 lws_close_reason(
                     wsi,
@@ -318,21 +309,26 @@ net_lws_wsclient_callback(
 
         } break;
 
+    case LWS_CALLBACK_WS_PEER_INITIATED_CLOSE: {
+        courier_t* courier = my_perl_context->courier;
+
+        courier->close_status = ntohs( *(uint16_t *) in );
+        courier->close_reason_length = len - sizeof(uint16_t);
+
+        memcpy(courier->close_reason, sizeof(uint16_t) + in, courier->close_reason_length);
+
+        } break;
+
     case LWS_CALLBACK_CLIENT_CLOSED: {
 
         courier_t* courier = my_perl_context->courier;
 
-        if (courier->close_yn) {
-            _on_ws_close(aTHX_
-                my_perl_context,
-                courier->close_status,
-                courier->close_reason_length,
-                courier->close_reason
-            );
-        }
-        else {
-            warn("LWS_CALLBACK_CLIENT_CLOSED but we didn’t close … is this OK?");
-        }
+        _on_ws_close(aTHX_
+            my_perl_context,
+            courier->close_status,
+            courier->close_reason_length,
+            courier->close_reason
+        );
 
         } break;
 
@@ -700,7 +696,7 @@ close (SV* self_sv, U16 code=LWS_CLOSE_STATUS_NOSTATUS, SV* reason_sv=NULL)
             courier->close_reason_length = 0;
         }
 
-        courier->close_yn = true;
+        courier->close_requested = true;
         courier->close_status = code;
 
         // Force a writable callback, which will trigger our close.

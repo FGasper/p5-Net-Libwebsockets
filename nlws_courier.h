@@ -30,7 +30,7 @@ typedef struct {
 
     pid_t pid;
 
-    bool            close_yn;
+    bool            close_requested;
     uint16_t        close_status;
     unsigned char   close_reason[MAX_CLOSE_REASON_LENGTH];
     STRLEN          close_reason_length;

@@ -16,7 +16,7 @@ sub set_lws_context {
 
     $self->{'lws_context'} = $ctx;
 
-    print "======= did set context: $ctx\n";
+    #print "======= did set context: $ctx\n";
 
     $self->{'_set_timer_cr'} = $self->_create_set_timer_cr();
 
@@ -35,10 +35,15 @@ sub set_timer {
     $self->{'_set_timer_cr'}->();
 }
 
+sub on_close {
+    $_[0]->_clear_timer();
+}
+
 sub DESTROY {
     my ($self) = @_;
 
-warn "======= destroying $self\n";
+    $self->_clear_timer();
+
     if ($$ == $self->{'pid'} && 'DESTRUCT' eq ${^GLOBAL_PHASE}) {
         warn "Destroying $self at global destruction; possible memory leak!\n";
     }
