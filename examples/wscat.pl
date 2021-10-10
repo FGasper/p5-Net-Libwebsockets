@@ -28,6 +28,8 @@ my $url = $ARGV[0] or die "Need URL! (Try: ws://echo.websocket.org)\n";
 
     $_->blocking(0) for (\*STDIN, \*STDOUT);
 
+    my $in_w;
+
     Net::Libwebsockets::WebSocket::Client::connect(
         url => $url,
         #event => [ 'IOAsync', $loop ],
@@ -69,7 +71,6 @@ my $url = $ARGV[0] or die "Need URL! (Try: ws://echo.websocket.org)\n";
 
             my @pauses;
 
-            my $in_w;
             $in_w = AnyEvent->io(
                 fh => \*STDIN,
                 poll => 'r',
@@ -117,7 +118,7 @@ my $url = $ARGV[0] or die "Need URL! (Try: ws://echo.websocket.org)\n";
     )->then(
         $cv,
         sub { $cv->croak(@_) },
-    );
+    )->finally( sub { undef $in_w } );
 
 #    $loop->run();
     $cv->recv();

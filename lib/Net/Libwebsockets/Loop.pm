@@ -35,10 +35,6 @@ sub set_timer {
     $self->{'_set_timer_cr'}->();
 }
 
-sub on_close {
-    $_[0]->_clear_timer();
-}
-
 sub DESTROY {
     my ($self) = @_;
 
