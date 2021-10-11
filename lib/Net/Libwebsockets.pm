@@ -77,6 +77,24 @@ This module provides a WebSocket implementation for Perl via XS and
 L<libwebsockets|https://libwebsockets.org/> (aka “LWS”), a lightweight C
 library.
 
+=head1 STATUS
+
+This module is B<EXPERIMENTAL>, but it should be useful enough
+to play with.
+
+Note the following:
+
+=over
+
+=item * This library needs LWS version 4.3.0 or later.
+
+=item * Some LWS builds lack WebSocket compression support.
+
+=item * Logging configuration is global for now. A later version of
+this library will support LWS’s per-instance logging.
+
+=back
+
 =head1 SEE ALSO
 
 Other CPAN WebSocket implementations include:
@@ -92,6 +110,8 @@ Other CPAN WebSocket implementations include:
 =item * L<AnyEvent::WebSocket::Client>
 
 =item * L<AnyEvent::WebSocket::Server>
+
+=item * L<Protocol::WebSocket>
 
 =back
 

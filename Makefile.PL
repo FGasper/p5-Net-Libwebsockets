@@ -113,6 +113,7 @@ WriteMakefile(
         '$(BASEEXT)$(OBJ_EXT)',
         'nlws_courier.o',
         'nlws_frame.o',
+        'nlws_logger.o',
         'nlws_perl_loop.o',
         'xshelper/xshelper.o',
     ],

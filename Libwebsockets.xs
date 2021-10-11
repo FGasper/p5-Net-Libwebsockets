@@ -21,6 +21,7 @@
 #include "nlws_courier.h"
 #include "nlws_perl_loop.h"
 #include "nlws_context.h"
+#include "nlws_logger.h"
 
 #if DEBUG
 #define LOG_FUNC fprintf(stderr, "%s\n", __func__)
@@ -132,7 +133,7 @@ void _on_ws_message(pTHX_ my_perl_context_t* my_perl_context, SV* msgsv) {
 
     for (unsigned c=0; c<cbcount; c++) {
         cbargs[0] = (c == cbcount-1) ? msgsv : newSVsv(msgsv);
-        xsh_call_sv_trap_void(aTHX_ cbs[c], cbargs, "Callback error: ");
+        xsh_call_sv_trap_void(cbs[c], cbargs, "Callback error: ");
     }
 }
 
@@ -437,7 +438,19 @@ BOOT:
     newCONSTSUB(gv_stashpv("Net::Libwebsockets", FALSE), "LCCSCF_ALLOW_INSECURE", newSVuv(LCCSCF_ALLOW_INSECURE));
     newCONSTSUB(gv_stashpv("Net::Libwebsockets", FALSE), "LWS_EV_READ", newSVuv(LWS_EV_READ));
     newCONSTSUB(gv_stashpv("Net::Libwebsockets", FALSE), "LWS_EV_WRITE", newSVuv(LWS_EV_WRITE));
-    newCONSTSUB(gv_stashpv("Net::Libwebsockets", FALSE), "NLWS_LWS_HAS_PMD", _LWS_HAS_PMD ? &PL_sv_yes : &PL_sv_no);
+    newCONSTSUB(gv_stashpv("Net::Libwebsockets", FALSE), "NLWS_LWS_HAS_PMD", boolSV(_LWS_HAS_PMD));
+    newCONSTSUB(gv_stashpv("Net::Libwebsockets", FALSE), "LLL_ERR", newSVuv(LLL_ERR));
+    newCONSTSUB(gv_stashpv("Net::Libwebsockets", FALSE), "LLL_WARN", newSVuv(LLL_WARN));
+    newCONSTSUB(gv_stashpv("Net::Libwebsockets", FALSE), "LLL_NOTICE", newSVuv(LLL_NOTICE));
+    newCONSTSUB(gv_stashpv("Net::Libwebsockets", FALSE), "LLL_INFO", newSVuv(LLL_INFO));
+    newCONSTSUB(gv_stashpv("Net::Libwebsockets", FALSE), "LLL_DEBUG", newSVuv(LLL_DEBUG));
+    newCONSTSUB(gv_stashpv("Net::Libwebsockets", FALSE), "LLL_PARSER", newSVuv(LLL_PARSER));
+    newCONSTSUB(gv_stashpv("Net::Libwebsockets", FALSE), "LLL_HEADER", newSVuv(LLL_HEADER));
+    newCONSTSUB(gv_stashpv("Net::Libwebsockets", FALSE), "LLL_EXT", newSVuv(LLL_EXT));
+    newCONSTSUB(gv_stashpv("Net::Libwebsockets", FALSE), "LLL_CLIENT", newSVuv(LLL_CLIENT));
+    newCONSTSUB(gv_stashpv("Net::Libwebsockets", FALSE), "LLL_LATENCY", newSVuv(LLL_LATENCY));
+    newCONSTSUB(gv_stashpv("Net::Libwebsockets", FALSE), "LLL_USER", newSVuv(LLL_USER));
+    newCONSTSUB(gv_stashpv("Net::Libwebsockets", FALSE), "LLL_THREAD", newSVuv(LLL_THREAD));
 
 void
 lws_service_fd_read( UV lws_context_uv, int fd )
@@ -712,3 +725,60 @@ DESTROY (SV* self_sv)
         }
 
         nlws_destroy_courier(aTHX_ courier);
+
+# ----------------------------------------------------------------------
+
+MODULE = Net::Libwebsockets     PACKAGE = Net::Libwebsockets::Logger
+
+PROTOTYPES: DISABLE
+
+SV*
+_new (SV* level_sv, SV* callback)
+    CODE:
+        UV level = xsh_sv_to_uv(level_sv);
+
+        lws_log_cx_t* my_logger_p;
+        Newx(my_logger_p, 1, lws_log_cx_t);
+
+        SV* cb_or_null = (callback && SvOK(callback)) ? SvREFCNT_inc(callback) : NULL;
+
+        *my_logger_p = (lws_log_cx_t) {
+            .lll_flags = LLLF_LOG_CONTEXT_AWARE | level,
+        };
+
+        if (cb_or_null) {
+        /*
+            nlws_logger_opaque_t* opaque;
+            Newx(nlws_logger_opaque_t, 1, opaque);
+
+            *opaque = (nlws_logger_opaque_t) {
+                .aTHX = aTHX,
+                .callback = cb_or_null,
+            };
+
+            my_logger_p->opaque = opaque;
+
+            my_logger_p->u.emit_cx = nlws_logger_emit;
+        */
+        }
+        else {
+            my_logger_p->u.emit = lwsl_emit_stderr;
+        }
+
+        RETVAL = xsh_ptr_to_svrv(my_logger_p, gv_stashpv(LOGGER_CLASS, FALSE));
+
+    OUTPUT:
+        RETVAL
+
+void
+DESTROY (SV* self_sv)
+    CODE:
+        lws_log_cx_t* my_logger_p = xsh_svrv_to_ptr(self_sv);
+
+        if (my_logger_p->opaque) {
+            nlws_logger_opaque_t* opaque = my_logger_p->opaque;
+            SvREFCNT_dec(opaque->callback);
+            Safefree(opaque);
+        }
+
+        Safefree(my_logger_p);

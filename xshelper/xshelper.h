@@ -15,7 +15,10 @@ void xsh_call_object_method_void (pTHX_ SV* object, const char* methname, SV** a
 
 SV* xsh_call_object_method_scalar (pTHX_ SV* object, const char* methname, SV** args);
 
-void xsh_call_sv_trap_void (pTHX_ SV* cbref, SV** args, const char *warnprefix);
+#define xsh_call_sv_trap_void(cbref, args, warnprefix) \
+    _MY_xsh_call_sv_trap_void(aTHX_ cbref, args, warnprefix)
+
+void _MY_xsh_call_sv_trap_void (pTHX_ SV* cbref, SV** args, const char *warnprefix);
 
 //----------------------------------------------------------------------
 
@@ -43,7 +46,8 @@ char* _MY_xsh_sv_to_str (pTHX_ SV* sv, bool is_utf8);
 /*
     Like L<perlapi/SvUV> but croaks if `sv` isn’t a simple unsigned integer.
 */
-UV xsh_sv_to_uv (pTHX_ SV* sv);
+#define xsh_sv_to_uv(sv) _MY_xsh_sv_to_uv(aTHX_ sv)
+UV _MY_xsh_sv_to_uv (pTHX_ SV* sv);
 
 /*
     Like L<perlapi/SvIV> but croaks if `sv` isn’t a simple integer.

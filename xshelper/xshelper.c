@@ -43,7 +43,7 @@ char* _MY_xsh_sv_to_str (pTHX_ SV* sv, bool is_utf8) {
     return str;
 }
 
-UV xsh_sv_to_uv (pTHX_ SV* sv) {
+UV _MY_xsh_sv_to_uv (pTHX_ SV* sv) {
     if (SvROK(sv)) _CROAK_STRINGIFY_REFERENCE(sv);
 
     if (SvUOK(sv)) return SvUV(sv);
@@ -125,7 +125,7 @@ SV* xsh_call_object_method_scalar (pTHX_ SV* object, const char* methname, SV** 
     return ret;
 }
 
-void xsh_call_sv_trap_void (pTHX_ SV* cbref, SV** args, const char *warnprefix) {
+void _MY_xsh_call_sv_trap_void (pTHX_ SV* cbref, SV** args, const char *warnprefix) {
     dSP;
 
     _SET_ARGS(NULL, args);
