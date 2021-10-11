@@ -149,8 +149,16 @@ net_lws_wsclient_callback(
 
     if (DEBUG) fprintf(stderr, "LWS callback: %d\n", reason);
 
-    // Not all callbacks pass user??
-    pTHX = my_perl_context ? my_perl_context->aTHX : NULL;
+    if (!my_perl_context) {
+        // It happens that we don’t need any of the callbacks where
+        // this applies.
+
+        if (DEBUG) fprintf(stderr, "--> no context given; skipping ...\n");
+
+        return 0;
+    }
+
+    PERL_CONTEXT_FROM_STRUCT(my_perl_context);
 
     switch (reason) {
 
