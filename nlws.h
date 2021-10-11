@@ -1,6 +1,9 @@
 #ifndef NLWS_H
 #define NLWS_H
 
+#include "EXTERN.h"
+#include "perl.h"
+
 #define MAX_CLOSE_REASON_LENGTH 123
 
 #define DEFAULT_POLL_TIMEOUT (5 * 60 * 1000)
@@ -19,8 +22,10 @@
 
 #ifdef MULTIPLICITY
 #   define PERL_CONTEXT_IN_STRUCT .aTHX = aTHX,
+#   define PERL_CONTEXT_FROM_STRUCT(name) pTHX = name->aTHX
 #else
 #   define PERL_CONTEXT_IN_STRUCT
+#   define PERL_CONTEXT_FROM_STRUCT(name) (void)(name)
 #endif
 
 #define UNUSED(x) (void)(x)

@@ -18,7 +18,7 @@ init_pt_custom (struct lws_context *cx, void *_loop, int tsi) {
 
     nlws_abstract_loop_t *sourceloop_p = _loop;
 
-    pTHX = sourceloop_p->aTHX;
+    PERL_CONTEXT_FROM_STRUCT(sourceloop_p);
 
     SV* methargs[] = {
         newSVuv( (UV) cx ),
@@ -42,7 +42,7 @@ custom_io_accept (struct lws *wsi) {
 
     nlws_abstract_loop_t* myloop_p = lws_evlib_wsi_to_evlib_pt(wsi);
 
-    pTHX = myloop_p->aTHX;
+    PERL_CONTEXT_FROM_STRUCT(myloop_p);
 
     int fd = lws_get_socket_fd(wsi);
 
@@ -64,7 +64,7 @@ custom_io (struct lws *wsi, unsigned int flags) {
     int fd = lws_get_socket_fd(wsi);
 
     if (-1 != fd) {
-        pTHX = myloop_p->aTHX;
+        PERL_CONTEXT_FROM_STRUCT(myloop_p);
 
         SV* myloop_sv = myloop_p->perlobj;
 
@@ -96,7 +96,7 @@ custom_io_close (struct lws *wsi) {
     int fd = lws_get_socket_fd(wsi);
 
     if (-1 != fd) {
-        pTHX = myloop_p->aTHX;
+        PERL_CONTEXT_FROM_STRUCT(myloop_p);
 
         SV* myloop_sv = myloop_p->perlobj;
 
@@ -112,7 +112,7 @@ static void
 custom_destroy_wsi (struct lws *wsi) {
     nlws_abstract_loop_t* myloop_p = lws_evlib_wsi_to_evlib_pt(wsi);
 
-    pTHX = myloop_p->aTHX;
+    PERL_CONTEXT_FROM_STRUCT(myloop_p);
 
     SvREFCNT_dec(myloop_p->perlobj);
 }
