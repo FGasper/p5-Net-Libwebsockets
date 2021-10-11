@@ -17,6 +17,12 @@
 #   define IS_GLOBAL_DESTRUCTION PL_dirty
 #endif
 
+#ifdef MULTIPLICITY
+#   define PERL_CONTEXT_IN_STRUCT .aTHX = aTHX,
+#else
+#   define PERL_CONTEXT_IN_STRUCT
+#endif
+
 #define UNUSED(x) (void)(x)
 
 #define RING_DEPTH 1024

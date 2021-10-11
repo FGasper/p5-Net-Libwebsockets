@@ -159,11 +159,7 @@ net_lws_wsclient_callback(
             SvREFCNT_dec(my_perl_context->courier_sv);
         }
 
-        net_lws_abstract_loop_t* myloop_p = (net_lws_abstract_loop_t*) lws_evlib_wsi_to_evlib_pt(wsi);
-
-        if (myloop_p && myloop_p->perlobj) {
-            SvREFCNT_dec(myloop_p->perlobj);
-        }
+        nlws_abstract_loop_t* myloop_p = (nlws_abstract_loop_t*) lws_evlib_wsi_to_evlib_pt(wsi);
 
         lws_context_destroy(myloop_p->lws_context);
 
@@ -483,11 +479,8 @@ MODULE = Net::Libwebsockets     PACKAGE = Net::Libwebsockets::WebSocket::Client
 PROTOTYPES: DISABLE
 
 void
-_new (SV* hostname, int port, SV* path, SV* compression_sv, SV* subprotocols_sv, SV* headers_ar, int tls_opts, unsigned ping_interval, unsigned ping_timeout, SV* loop_obj, SV* connected_d)
+_new (SV* hostname, int port, SV* path, SV* compression_sv, SV* subprotocols_sv, SV* headers_ar, int tls_opts, unsigned ping_interval, unsigned ping_timeout, SV* loop_obj, SV* connected_d, SV* logger_obj)
     CODE:
-        //lws_set_log_level( LLL_USER | LLL_ERR | LLL_WARN | LLL_NOTICE | LLL_DEBUG | LLL_PARSER | LLL_HEADER | LLL_INFO, NULL );
-        //lws_set_log_level( LLL_USER | LLL_ERR | LLL_WARN | LLL_NOTICE | LLL_PARSER | LLL_HEADER | LLL_INFO, NULL );
-
         assert(SvROK(compression_sv));
         assert(SVt_PVAV == SvTYPE(SvRV(compression_sv)));
 
@@ -505,8 +498,10 @@ _new (SV* hostname, int port, SV* path, SV* compression_sv, SV* subprotocols_sv,
             extensions_p = NULL;
         }
 
-        net_lws_abstract_loop_t abstract_loop = {
-            .aTHX = aTHX,
+        // This structure gets copied; that’s why we don’t bump
+        // perlobj’s refcount yet.
+        nlws_abstract_loop_t abstract_loop = {
+            PERL_CONTEXT_IN_STRUCT
             .perlobj = loop_obj,
         };
 
@@ -537,7 +532,7 @@ _new (SV* hostname, int port, SV* path, SV* compression_sv, SV* subprotocols_sv,
         Newxz(my_perl_context, 1, my_perl_context_t); // TODO clean up
 
         *my_perl_context = (my_perl_context_t) {
-            .aTHX = aTHX,
+            PERL_CONTEXT_IN_STRUCT
             .pid = getpid(),
 
             .extensions = extensions_p,
@@ -752,7 +747,7 @@ _new (SV* level_sv, SV* callback)
             Newx(nlws_logger_opaque_t, 1, opaque);
 
             *opaque = (nlws_logger_opaque_t) {
-                .aTHX = aTHX,
+                PERL_CONTEXT_IN_STRUCT
                 .callback = cb_or_null,
             };
 

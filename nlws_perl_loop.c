@@ -1,3 +1,4 @@
+#include "nlws.h"
 #include "nlws_perl_loop.h"
 #include "xshelper/xshelper.h"
 
@@ -13,9 +14,9 @@ static int
 init_pt_custom (struct lws_context *cx, void *_loop, int tsi) {
     LOG_FUNC;
 
-    net_lws_abstract_loop_t* myloop_p = lws_evlib_tsi_to_evlib_pt(cx, tsi);
+    nlws_abstract_loop_t* myloop_p = lws_evlib_tsi_to_evlib_pt(cx, tsi);
 
-    net_lws_abstract_loop_t *sourceloop_p = _loop;
+    nlws_abstract_loop_t *sourceloop_p = _loop;
 
     pTHX = sourceloop_p->aTHX;
 
@@ -26,7 +27,7 @@ init_pt_custom (struct lws_context *cx, void *_loop, int tsi) {
 
     xsh_call_object_method_void( aTHX_ sourceloop_p->perlobj, "set_lws_context", methargs );
 
-    StructCopy(sourceloop_p, myloop_p, net_lws_abstract_loop_t);
+    StructCopy(sourceloop_p, myloop_p, nlws_abstract_loop_t);
 
     myloop_p->lws_context = cx;
 
@@ -39,7 +40,7 @@ static int
 custom_io_accept (struct lws *wsi) {
     LOG_FUNC;
 
-    net_lws_abstract_loop_t* myloop_p = lws_evlib_wsi_to_evlib_pt(wsi);
+    nlws_abstract_loop_t* myloop_p = lws_evlib_wsi_to_evlib_pt(wsi);
 
     pTHX = myloop_p->aTHX;
 
@@ -58,7 +59,7 @@ static void
 custom_io (struct lws *wsi, unsigned int flags) {
     LOG_FUNC;
 
-    net_lws_abstract_loop_t* myloop_p = lws_evlib_wsi_to_evlib_pt(wsi);
+    nlws_abstract_loop_t* myloop_p = lws_evlib_wsi_to_evlib_pt(wsi);
 
     int fd = lws_get_socket_fd(wsi);
 
@@ -90,7 +91,7 @@ static int
 custom_io_close (struct lws *wsi) {
     LOG_FUNC;
 
-    net_lws_abstract_loop_t* myloop_p = lws_evlib_wsi_to_evlib_pt(wsi);
+    nlws_abstract_loop_t* myloop_p = lws_evlib_wsi_to_evlib_pt(wsi);
 
     int fd = lws_get_socket_fd(wsi);
 
@@ -107,6 +108,15 @@ custom_io_close (struct lws *wsi) {
     return 0;
 }
 
+static void
+custom_destroy_wsi (struct lws *wsi) {
+    nlws_abstract_loop_t* myloop_p = lws_evlib_wsi_to_evlib_pt(wsi);
+
+    pTHX = myloop_p->aTHX;
+
+    SvREFCNT_dec(myloop_p->perlobj);
+}
+
 const struct lws_event_loop_ops event_loop_ops_custom = {
     .name                   = "net-lws-custom-loop",
 
@@ -116,7 +126,9 @@ const struct lws_event_loop_ops event_loop_ops_custom = {
     .io                     = custom_io,
     .wsi_logical_close      = custom_io_close,
 
-    .evlib_size_pt          = sizeof(net_lws_abstract_loop_t),
+    .destroy_wsi            = custom_destroy_wsi,
+
+    .evlib_size_pt          = sizeof(nlws_abstract_loop_t),
 };
 
 const lws_plugin_evlib_t evlib_custom = {

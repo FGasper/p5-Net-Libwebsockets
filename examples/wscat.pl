@@ -46,24 +46,16 @@ my $url = $ARGV[0] or die "Need URL! (Try: ws://echo.websocket.org)\n";
                 # omitting on_error for brevity
             );
 
-#            my $out_stream = IO::Async::Stream->new(
-#                write_handle => \*STDOUT,
-#            );
-#
-#            $loop->add($out_stream);
-
             $ws->on_text(
                 sub ($msg) {
                     utf8::encode($msg);
                     $out->push_write($msg);
-#                    $out_stream->write($msg);
                 },
             );
 
             $ws->on_binary(
                 sub ($msg) {
                     $out->push_write($msg);
-#                    $out_stream->write($msg);
                 },
             );
 
@@ -75,9 +67,6 @@ my $url = $ARGV[0] or die "Need URL! (Try: ws://echo.websocket.org)\n";
                 fh => \*STDIN,
                 poll => 'r',
                 cb => sub {
-#            $loop->watch_io(
-#                handle => \*STDIN,
-#                on_read_ready => sub {
                     my $in = IO::SigGuard::sysread( \*STDIN, my $buf, 65536 );
 
                     if ($in) {
@@ -93,10 +82,6 @@ my $url = $ARGV[0] or die "Need URL! (Try: ws://echo.websocket.org)\n";
                         @pauses = ();
 
                         undef $in_w;
-#                        $loop->unwatch_io(
-#                            handle => \*STDIN,
-#                            on_read_ready => 1,
-#                        );
 
                         my $close_code;
 
@@ -120,7 +105,6 @@ my $url = $ARGV[0] or die "Need URL! (Try: ws://echo.websocket.org)\n";
         sub { $cv->croak(@_) },
     )->finally( sub { undef $in_w } );
 
-#    $loop->run();
     $cv->recv();
 }
 

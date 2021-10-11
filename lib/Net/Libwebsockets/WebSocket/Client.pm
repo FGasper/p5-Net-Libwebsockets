@@ -116,6 +116,7 @@ my %_KNOWN = map { $_ => 1 } (
     'headers',
     'tls',
     'ping_interval', 'ping_timeout',
+    'logger',
 );
 
 my %DEFAULT = (
@@ -152,7 +153,13 @@ sub connect {
     # Tolerate ancient perls that lack “//=”:
     !defined($opts{$_}) && ($opts{$_} = $DEFAULT{$_}) for keys %DEFAULT;
 
-    my ($url, $event, $tls_opt, $headers, $subprotocols) = @opts{'url', 'event', 'tls', 'headers', 'subprotocols'};
+    my ($url, $event, $tls_opt, $headers, $subprotocols, $logger) = @opts{'url', 'event', 'tls', 'headers', 'subprotocols', 'logger'};
+
+    if (defined $logger) {
+        if (!UNIVERSAL::isa($logger, 'Net::Libwebsockets::Logger')) {
+            Carp::croak "Unknown logger: $logger";
+        }
+    }
 
     if ($subprotocols) {
         _validate_subprotocol($_) for @$subprotocols;
@@ -216,6 +223,7 @@ sub connect {
         @opts{'ping_interval', 'ping_timeout'},
         $loop_obj,
         $connected_d,
+        $logger,
     );
 
     return $connected_d->promise();

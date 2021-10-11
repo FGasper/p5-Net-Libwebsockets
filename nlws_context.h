@@ -21,7 +21,7 @@ typedef struct {
 
     SV* headers_ar;
 
-    net_lws_abstract_loop_t* abstract_loop;
+    nlws_abstract_loop_t* abstract_loop;
 
     courier_t* courier;
     SV* courier_sv;

@@ -18,7 +18,7 @@ typedef struct {
     SV* perlobj;
 
     struct lws_context* lws_context;
-} net_lws_abstract_loop_t;
+} nlws_abstract_loop_t;
 
 extern const struct lws_event_loop_ops event_loop_ops_custom;
 
