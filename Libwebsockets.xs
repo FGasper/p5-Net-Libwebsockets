@@ -23,6 +23,9 @@
 #include "nlws_context.h"
 #include "nlws_logger.h"
 
+#define WARN_DESTROY_AT_DESTRUCT(sv) \
+    warn("Destroying %" SVf " at global destruction!\n", sv);
+
 #if DEBUG
 #define LOG_FUNC fprintf(stderr, "%s\n", __func__)
 #else
@@ -167,9 +170,13 @@ net_lws_wsclient_callback(
             SvREFCNT_dec(my_perl_context->courier_sv);
         }
 
+        SV* logger_obj = my_perl_context->logger_obj;
+
         nlws_abstract_loop_t* myloop_p = (nlws_abstract_loop_t*) lws_evlib_wsi_to_evlib_pt(wsi);
 
         lws_context_destroy(myloop_p->lws_context);
+
+        //if (logger_obj) SvREFCNT_dec(logger_obj);
 
         break;
 
@@ -506,8 +513,19 @@ _new (SV* hostname, int port, SV* path, SV* compression_sv, SV* subprotocols_sv,
             extensions_p = NULL;
         }
 
-        // This structure gets copied; that’s why we don’t bump
-        // perlobj’s refcount yet.
+        lws_log_cx_t* log_cx;
+
+        if (logger_obj && SvOK(logger_obj)) {
+            log_cx = xsh_svrv_to_ptr(logger_obj);
+    fprintf(stderr, "got logger %p\n", log_cx);
+        }
+        else {
+    fprintf(stderr, "NO got logger\n");
+            log_cx = NULL;
+        }
+
+        // This struct gets copied; we defer bumping loop_obj’s refcount
+        // until that time. See nlws_perl_loop.c.
         nlws_abstract_loop_t abstract_loop = {
             PERL_CONTEXT_IN_STRUCT
             .perlobj = loop_obj,
@@ -528,6 +546,8 @@ _new (SV* hostname, int port, SV* path, SV* compression_sv, SV* subprotocols_sv,
             .port = CONTEXT_PORT_NO_LISTEN, /* we do not run any server */
 
             .protocols = wsclient_protocols,
+
+            .log_cx = log_cx,
         };
 
         struct lws_context *context = lws_create_context(&info);
@@ -552,6 +572,8 @@ _new (SV* hostname, int port, SV* path, SV* compression_sv, SV* subprotocols_sv,
             .connect_d = connected_d,
             .headers_ar = headers_ar,
 
+            .logger_obj = logger_obj,
+
             .lws_retry = (lws_retry_bo_t) {
                 .retry_ms_table_count = 0,
                 .conceal_count = 0,
@@ -571,12 +593,13 @@ _new (SV* hostname, int port, SV* path, SV* compression_sv, SV* subprotocols_sv,
             .host = hostname_str,
             .origin = hostname_str,
             .ssl_connection = tls_opts,
-//            .retry_and_idle_policy = &my_perl_context->lws_retry,
+            .retry_and_idle_policy = &my_perl_context->lws_retry,
 
             // The callback’s `user`:
             .userdata = my_perl_context,
 
             .protocol = SvOK(subprotocols_sv) ? xsh_sv_to_str( subprotocols_sv) : NULL,
+            //.log_cx = log_cx,
         };
 
         if (!lws_client_connect_via_info(&client)) {
@@ -587,6 +610,7 @@ _new (SV* hostname, int port, SV* path, SV* compression_sv, SV* subprotocols_sv,
 
         SvREFCNT_inc(connected_d);
         SvREFCNT_inc(headers_ar);
+        if (log_cx) SvREFCNT_inc(logger_obj);
 
 # ----------------------------------------------------------------------
 
@@ -724,7 +748,7 @@ DESTROY (SV* self_sv)
         courier_t* courier = xsh_svrv_to_ptr(self_sv);
 
         if (IS_GLOBAL_DESTRUCTION && (getpid() == courier->pid)) {
-            warn("Destroying %" SVf " at global destruction!\n", self_sv);
+            WARN_DESTROY_AT_DESTRUCT(self_sv);
         }
 
         nlws_destroy_courier(aTHX_ courier);
@@ -736,9 +760,16 @@ MODULE = Net::Libwebsockets     PACKAGE = Net::Libwebsockets::Logger
 PROTOTYPES: DISABLE
 
 SV*
-_new (SV* level_sv, SV* callback)
+_new (SV* classname_sv, SV* level_sv, SV* callback)
     CODE:
-        UV level = xsh_sv_to_uv(level_sv);
+        U32 level;
+
+        if (SvOK(level_sv)) {
+            level = xsh_sv_to_uv(level_sv);
+        }
+        else {
+            level = nlws_get_global_lwsl_level();
+        }
 
         lws_log_cx_t* my_logger_p;
         Newx(my_logger_p, 1, lws_log_cx_t);
@@ -746,29 +777,32 @@ _new (SV* level_sv, SV* callback)
         SV* cb_or_null = (callback && SvOK(callback)) ? SvREFCNT_inc(callback) : NULL;
 
         *my_logger_p = (lws_log_cx_t) {
-            .lll_flags = LLLF_LOG_CONTEXT_AWARE | level,
+            .lll_flags = level,
+            //.prepend = _log_prepend_cx,
         };
 
         if (cb_or_null) {
-        /*
+    fprintf(stderr, "logger has callback!\n");
             nlws_logger_opaque_t* opaque;
-            Newx(nlws_logger_opaque_t, 1, opaque);
+            Newx(opaque, 1, nlws_logger_opaque_t);
 
             *opaque = (nlws_logger_opaque_t) {
                 PERL_CONTEXT_IN_STRUCT
+                .pid = getpid(),
                 .callback = cb_or_null,
             };
 
             my_logger_p->opaque = opaque;
 
+            my_logger_p->lll_flags |= LLLF_LOG_CONTEXT_AWARE;
             my_logger_p->u.emit_cx = nlws_logger_emit;
-        */
+            //my_logger_p->refcount_cb = nlws_logger_start;
         }
         else {
             my_logger_p->u.emit = lwsl_emit_stderr;
         }
 
-        RETVAL = xsh_ptr_to_svrv(my_logger_p, gv_stashpv(LOGGER_CLASS, FALSE));
+        RETVAL = xsh_ptr_to_svrv(my_logger_p, gv_stashpv(SvPVbyte_nolen(classname_sv), FALSE));
 
     OUTPUT:
         RETVAL
@@ -780,6 +814,11 @@ DESTROY (SV* self_sv)
 
         if (my_logger_p->opaque) {
             nlws_logger_opaque_t* opaque = my_logger_p->opaque;
+
+            if (IS_GLOBAL_DESTRUCTION && (getpid() == opaque->pid)) {
+                WARN_DESTROY_AT_DESTRUCT(self_sv);
+            }
+
             SvREFCNT_dec(opaque->callback);
             Safefree(opaque);
         }

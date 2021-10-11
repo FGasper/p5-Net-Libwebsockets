@@ -11,7 +11,8 @@ typedef enum {
 } message_type_t;
 
 typedef struct {
-    tTHX aTHX;
+    pTHX;
+
     pid_t pid;
 
     // This needs to last throughout the session:
@@ -27,6 +28,8 @@ typedef struct {
     SV* courier_sv;
 
     lws_retry_bo_t lws_retry;
+
+    SV* logger_obj;
 
     char* message_content;
     STRLEN content_length;

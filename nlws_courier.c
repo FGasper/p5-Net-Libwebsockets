@@ -74,5 +74,5 @@ void nlws_destroy_courier (pTHX_ courier_t* courier) {
     lws_ring_destroy(courier->ring);
 
     Safefree(courier);
-    warn("end courier destroy\n");
+    //warn("end courier destroy\n");
 }

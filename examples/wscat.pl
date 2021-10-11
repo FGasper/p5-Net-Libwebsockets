@@ -16,6 +16,7 @@ $Promise::XS::DETECT_MEMORY_LEAKS = 1;
 #use IO::Async::Stream;
 
 use Net::Libwebsockets::WebSocket::Client ();
+use Net::Libwebsockets::Logger ();
 
 use IO::SigGuard;
 
@@ -24,17 +25,20 @@ my $url = $ARGV[0] or die "Need URL! (Try: ws://echo.websocket.org)\n";
 {
     my $cv = AE::cv();
 
-#    my $loop = IO::Async::Loop->new();
-
     $_->blocking(0) for (\*STDIN, \*STDOUT);
 
     my $in_w;
 
     Net::Libwebsockets::WebSocket::Client::connect(
         url => $url,
-        #event => [ 'IOAsync', $loop ],
         event => 'AnyEvent',
         headers => [ 'X-Foo' => 'bar' ],
+        logger => Net::Libwebsockets::Logger->new(
+            callback => sub {
+                use Data::Dumper;
+                print STDERR Dumper [ logger_callback => @_];
+            },
+        ),
     )->then(
         sub ($ws) {
             print STDERR "============ connected!!\n";

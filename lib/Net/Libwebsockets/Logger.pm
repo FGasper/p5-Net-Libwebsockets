@@ -22,8 +22,6 @@ sub new {
         }
     }
 
-    $opts{'level'} ||= 0;
-
     return $class->_new(@opts{'level', 'callback'});
 }
 

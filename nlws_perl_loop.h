@@ -13,9 +13,9 @@
 #include <libwebsockets.h>
 
 typedef struct {
-    tTHX aTHX;
+    pTHX;
 
-    SV* perlobj;
+    SV* perlobj;    // Loop object
 
     struct lws_context* lws_context;
 } nlws_abstract_loop_t;
