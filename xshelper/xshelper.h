@@ -52,7 +52,8 @@ UV _MY_xsh_sv_to_uv (pTHX_ SV* sv);
 /*
     Like L<perlapi/SvIV> but croaks if `sv` isn’t a simple integer.
 */
-IV xsh_sv_to_iv (pTHX_ SV* sv);
+#define xsh_sv_to_iv(sv) _MY_xsh_sv_to_iv(aTHX_ sv)
+IV _MY_xsh_sv_to_iv (pTHX_ SV* sv);
 
 //----------------------------------------------------------------------
 
@@ -73,5 +74,8 @@ SV* _MY_xsh_ptr_to_svrv (pTHX_ void* ptr, HV* stash);
 )
 
 //----------------------------------------------------------------------
+
+#define xsh_PL_package \
+    HvNAME( (HV*)CopSTASH(PL_curcop) )
 
 #endif

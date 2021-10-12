@@ -435,6 +435,10 @@ void _populate_extensions (pTHX_ struct lws_extension* extensions, AV* compressi
 #endif
 }
 
+void nlws_logger_start (struct lws_log_cx *cx, int _new) {
+    fprintf(stderr, "refcount _new: %d (refcount=%d)\n", _new, cx->refcount);
+}
+
 /* ---------------------------------------------------------------------- */
 
 MODULE = Net::Libwebsockets     PACKAGE = Net::Libwebsockets
@@ -447,8 +451,6 @@ BOOT:
     newCONSTSUB(gv_stashpv("Net::Libwebsockets", FALSE), "LCCSCF_SKIP_SERVER_CERT_HOSTNAME_CHECK", newSVuv(LCCSCF_SKIP_SERVER_CERT_HOSTNAME_CHECK));
     newCONSTSUB(gv_stashpv("Net::Libwebsockets", FALSE), "LCCSCF_ALLOW_EXPIRED", newSVuv(LCCSCF_ALLOW_EXPIRED));
     newCONSTSUB(gv_stashpv("Net::Libwebsockets", FALSE), "LCCSCF_ALLOW_INSECURE", newSVuv(LCCSCF_ALLOW_INSECURE));
-    newCONSTSUB(gv_stashpv("Net::Libwebsockets", FALSE), "LWS_EV_READ", newSVuv(LWS_EV_READ));
-    newCONSTSUB(gv_stashpv("Net::Libwebsockets", FALSE), "LWS_EV_WRITE", newSVuv(LWS_EV_WRITE));
     newCONSTSUB(gv_stashpv("Net::Libwebsockets", FALSE), "NLWS_LWS_HAS_PMD", boolSV(_LWS_HAS_PMD));
     newCONSTSUB(gv_stashpv("Net::Libwebsockets", FALSE), "LLL_ERR", newSVuv(LLL_ERR));
     newCONSTSUB(gv_stashpv("Net::Libwebsockets", FALSE), "LLL_WARN", newSVuv(LLL_WARN));
@@ -462,19 +464,37 @@ BOOT:
     newCONSTSUB(gv_stashpv("Net::Libwebsockets", FALSE), "LLL_LATENCY", newSVuv(LLL_LATENCY));
     newCONSTSUB(gv_stashpv("Net::Libwebsockets", FALSE), "LLL_USER", newSVuv(LLL_USER));
     newCONSTSUB(gv_stashpv("Net::Libwebsockets", FALSE), "LLL_THREAD", newSVuv(LLL_THREAD));
+    // ----------------------------------------------------------------------
+    // Privates:
+    newCONSTSUB(gv_stashpv("Net::Libwebsockets", FALSE), "_LWS_EV_READ", newSVuv(LWS_EV_READ));
+    newCONSTSUB(gv_stashpv("Net::Libwebsockets", FALSE), "_LWS_EV_WRITE", newSVuv(LWS_EV_WRITE));
 
 void
-lws_service_fd_read( UV lws_context_uv, int fd )
+set_log_level(SV* level_sv)
+    CODE:
+        IV level = xsh_sv_to_iv(level_sv);
+
+        if ((level < 0) || (level >= (1 << LLL_COUNT))) {
+            croak("%s: Invalid level: %" IVdf, xsh_PL_package, level);
+        }
+
+        lws_set_log_level(level, NULL);
+
+# ----------------------------------------------------------------------
+# Privates:
+
+void
+_lws_service_fd_read( UV lws_context_uv, int fd )
     CODE:
         _lws_service_fd(aTHX_ lws_context_uv, fd, POLLIN);
 
 void
-lws_service_fd_write( UV lws_context_uv, int fd )
+_lws_service_fd_write( UV lws_context_uv, int fd )
     CODE:
         _lws_service_fd(aTHX_ lws_context_uv, fd, POLLOUT);
 
 int
-get_timeout( UV lws_context_uv )
+_get_timeout( UV lws_context_uv )
     CODE:
         uintptr_t lws_context_int = lws_context_uv;
 
@@ -517,10 +537,8 @@ _new (SV* hostname, int port, SV* path, SV* compression_sv, SV* subprotocols_sv,
 
         if (logger_obj && SvOK(logger_obj)) {
             log_cx = xsh_svrv_to_ptr(logger_obj);
-    fprintf(stderr, "got logger %p\n", log_cx);
         }
         else {
-    fprintf(stderr, "NO got logger\n");
             log_cx = NULL;
         }
 
@@ -779,10 +797,10 @@ _new (SV* classname_sv, SV* level_sv, SV* callback)
         *my_logger_p = (lws_log_cx_t) {
             .lll_flags = level,
             //.prepend = _log_prepend_cx,
+            .refcount_cb = nlws_logger_start,
         };
 
         if (cb_or_null) {
-    fprintf(stderr, "logger has callback!\n");
             nlws_logger_opaque_t* opaque;
             Newx(opaque, 1, nlws_logger_opaque_t);
 
@@ -796,7 +814,6 @@ _new (SV* classname_sv, SV* level_sv, SV* callback)
 
             my_logger_p->lll_flags |= LLLF_LOG_CONTEXT_AWARE;
             my_logger_p->u.emit_cx = nlws_logger_emit;
-            //my_logger_p->refcount_cb = nlws_logger_start;
         }
         else {
             my_logger_p->u.emit = lwsl_emit_stderr;

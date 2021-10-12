@@ -34,6 +34,7 @@ my $url = $ARGV[0] or die "Need URL! (Try: ws://echo.websocket.org)\n";
         event => 'AnyEvent',
         headers => [ 'X-Foo' => 'bar' ],
         logger => Net::Libwebsockets::Logger->new(
+            level => 0b11111111111,
             callback => sub {
                 use Data::Dumper;
                 print STDERR Dumper [ logger_callback => @_];

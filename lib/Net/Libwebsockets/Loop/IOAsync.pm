@@ -41,7 +41,7 @@ sub _create_set_timer_cr {
         $loop->unwatch_time($$timer_sr) if $$timer_sr;
 
         $$timer_sr = $loop->watch_time(
-            after => Net::Libwebsockets::get_timeout($ctx) / 1000,
+            after => Net::Libwebsockets::_get_timeout($ctx) / 1000,
             code => __SUB__,
         );
     };
@@ -61,11 +61,11 @@ sub add_fd {
     $self->{'fd_handle'}{$fd} = IO::Async::Handle->new(
         handle => $fh,
         on_read_ready => sub {
-            Net::Libwebsockets::lws_service_fd_read($ctx, $fd);
+            Net::Libwebsockets::_lws_service_fd_read($ctx, $fd);
             &$set_timer_cr;
         },
         on_write_ready => sub {
-            Net::Libwebsockets::lws_service_fd_write($ctx, $fd);
+            Net::Libwebsockets::_lws_service_fd_write($ctx, $fd);
             &$set_timer_cr;
         },
 
@@ -85,11 +85,11 @@ sub add_to_fd {
         die "Can’t add polling ($_[2]) to FD ($_[1]) that isn’t added!";
     };
 
-    if ($_[2] & Net::Libwebsockets::LWS_EV_READ) {
+    if ($_[2] & Net::Libwebsockets::_LWS_EV_READ) {
         $handle->want_readready(1);
     }
 
-    if ($_[2] & Net::Libwebsockets::LWS_EV_WRITE) {
+    if ($_[2] & Net::Libwebsockets::_LWS_EV_WRITE) {
         $handle->want_writeready(1);
     }
 
@@ -100,11 +100,11 @@ sub remove_from_fd {
     # my ($self, $fd, $flags) = @_;
 
     if (my $handle = $_[0]->{'fd_handle'}{$_[1]}) {
-        if ($_[2] & Net::Libwebsockets::LWS_EV_READ) {
+        if ($_[2] & Net::Libwebsockets::_LWS_EV_READ) {
             $handle->want_readready(0);
         }
 
-        if ($_[2] & Net::Libwebsockets::LWS_EV_WRITE) {
+        if ($_[2] & Net::Libwebsockets::_LWS_EV_WRITE) {
             $handle->want_writeready(0);
         }
     }

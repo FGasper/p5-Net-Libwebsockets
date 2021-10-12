@@ -57,7 +57,7 @@ UV _MY_xsh_sv_to_uv (pTHX_ SV* sv) {
     croak("`%" SVf "` given where unsigned integer expected!", sv);
 }
 
-IV xsh_sv_to_iv (pTHX_ SV* sv) {
+IV _MY_xsh_sv_to_iv (pTHX_ SV* sv) {
     if (SvROK(sv)) _CROAK_STRINGIFY_REFERENCE(sv);
 
     if (SvIOK(sv)) return SvIV(sv);

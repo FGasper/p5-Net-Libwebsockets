@@ -90,10 +90,28 @@ Note the following:
 
 =item * Some LWS builds lack WebSocket compression support.
 
-=item * Logging configuration is global for now. A later version of
-this library will support LWS’s per-instance logging.
-
 =back
+
+=head1 EVENT LOOP SUPPORT
+
+This library support most of Perl’s popular event loops via either
+L<IO::Async> or L<AnyEvent>.
+
+=head1 LOGGING
+
+LWS historically configured its logging globally; i.e., all LWS contexts
+within a process shared the same logging configuration.
+
+LWS 4.3.0 introduced context-specific logging alongside the old
+global-state functions. As of this writing, though, most of LWS’s internal
+logger calls still use the older functions, which means those log
+statements will go out however the global logging is configured, regardless
+of whether there’s a context-specific logging configuration for a given
+action.
+
+This library supports both LWS’s old/global and new/contextual logging.
+See L<Net::Libwebsockets::Logger> and C<set_log_level()> below for more
+details.
 
 =head1 SEE ALSO
 
@@ -114,6 +132,41 @@ Other CPAN WebSocket implementations include:
 =item * L<Protocol::WebSocket>
 
 =back
+
+=head1 CONSTANTS
+
+This package exposes the following constants. For their meanings
+see LWS’s documentation.
+
+=over
+
+=item * C<NLWS_LWS_HAS_PMD> - A boolean that indicates whether
+WebSocket compression (i.e., L<per-message deflate|https://datatracker.ietf.org/doc/html/rfc7692#page-12>, or C<PMD>) is available.
+
+=item * Log levels: C<LLL_ERR> et al. (L<See here for the others.|https://libwebsockets.org/lws-api-doc-master/html/group__log.html>)
+
+=item * TLS/SSL-related: C<LCCSCF_ALLOW_SELFSIGNED>, C<LCCSCF_SKIP_SERVER_CERT_HOSTNAME_CHECK>, C<LCCSCF_ALLOW_EXPIRED>, C<LCCSCF_ALLOW_INSECURE>, C<LCCSCF_USE_SSL>
+
+=back
+
+=head1 FUNCTIONS
+
+Most of this distribution’s functionality lies in submodules; however,
+this package does expose some controls of its own:
+
+=head2 set_log_level( $LEVEL )
+
+Sets LWS’s global log level, which is the bitwise-OR of the log-level
+constants referenced above. For example, to see only errors and warnings
+you can do:
+
+    Net::Libwebsockets::set_log_level(
+        Net::Libwebsockets::LLL_ERR | Net::Libwebsockets::LLL_WARN
+    );
+
+LWS allows setting a callback to direct log output to someplace other
+than STDERR. This library, though, does not (currently?) support that
+except via contextual logging (L<Net::Libwebsockets::Logger>).
 
 =cut
 
