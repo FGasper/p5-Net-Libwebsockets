@@ -18,10 +18,14 @@ typedef struct {
     pid_t pid;
 
     SV* callback;
+
+    SV* perlobj;
 } nlws_logger_opaque_t;
 
 //lws_log_emit_cx_t nlws_logger_emit;
 void nlws_logger_emit(struct lws_log_cx *cx, int level, const char *line, size_t len);
+
+void nlws_logger_on_refcount_change (struct lws_log_cx *cx, int _new);
 
 int nlws_get_global_lwsl_level();
 

@@ -2,7 +2,7 @@
 #include "nlws_perl_loop.h"
 #include "xshelper/xshelper.h"
 
-#define DEBUG 0
+#define DEBUG 1
 
 #if DEBUG
 #define LOG_FUNC fprintf(stderr, "%s\n", __func__)
@@ -108,9 +108,34 @@ custom_io_close (struct lws *wsi) {
     return 0;
 }
 
+# if 0
 static void
 custom_destroy_wsi (struct lws *wsi) {
+    LOG_FUNC;
+
     nlws_abstract_loop_t* myloop_p = lws_evlib_wsi_to_evlib_pt(wsi);
+
+    PERL_CONTEXT_FROM_STRUCT(myloop_p);
+}
+
+static void
+custom_destroy_context1 (struct lws_context *context) {
+    LOG_FUNC;
+    fprintf(stderr, "lws_context = %p\n", context);
+}
+
+static void
+custom_destroy_context2 (struct lws_context *context) {
+    LOG_FUNC;
+    fprintf(stderr, "lws_context = %p\n", context);
+}
+#endif
+
+static void
+custom_destroy_pt (struct lws_context *cx, int tsi) {
+    LOG_FUNC;
+
+    nlws_abstract_loop_t* myloop_p = lws_evlib_tsi_to_evlib_pt(cx, tsi);
 
     PERL_CONTEXT_FROM_STRUCT(myloop_p);
 
@@ -126,7 +151,12 @@ const struct lws_event_loop_ops event_loop_ops_custom = {
     .io                     = custom_io,
     .wsi_logical_close      = custom_io_close,
 
+# if 0
     .destroy_wsi            = custom_destroy_wsi,
+    .destroy_context1       = custom_destroy_context1,
+    .destroy_context2       = custom_destroy_context2,
+#endif
+    .destroy_pt       = custom_destroy_pt,
 
     .evlib_size_pt          = sizeof(nlws_abstract_loop_t),
 };

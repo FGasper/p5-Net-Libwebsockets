@@ -5,6 +5,7 @@ use warnings;
 
 use experimental 'signatures';
 
+#use AnyEvent::Loop;
 use AnyEvent;
 use AnyEvent::Handle;
 
@@ -72,6 +73,7 @@ my $url = $ARGV[0] or die "Need URL! (Try: ws://echo.websocket.org)\n";
                 fh => \*STDIN,
                 poll => 'r',
                 cb => sub {
+            print STDERR "============ input!!\n";
                     my $in = IO::SigGuard::sysread( \*STDIN, my $buf, 65536 );
 
                     if ($in) {
@@ -108,7 +110,9 @@ my $url = $ARGV[0] or die "Need URL! (Try: ws://echo.websocket.org)\n";
     )->then(
         $cv,
         sub { $cv->croak(@_) },
-    )->finally( sub { undef $in_w } );
+    )->finally( sub {
+print "===== unsetting STDIN watcher\n";
+undef $in_w } );
 
     $cv->recv();
 }

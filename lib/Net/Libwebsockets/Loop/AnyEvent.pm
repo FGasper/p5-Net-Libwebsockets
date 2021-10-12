@@ -49,7 +49,7 @@ sub add_to_fd {
             poll => 'r',
             cb => sub {
                 Net::Libwebsockets::_lws_service_fd_read($ctx, $fd);
-                &$set_timer_cr;
+                $set_timer_cr->();
             },
         );
     }
@@ -60,7 +60,7 @@ sub add_to_fd {
             poll => 'w',
             cb => sub {
                 Net::Libwebsockets::_lws_service_fd_write($ctx, $fd);
-                &$set_timer_cr;
+                $set_timer_cr->();
             },
         );
     }

@@ -12,7 +12,7 @@
 
 #include <arpa/inet.h>
 
-#define DEBUG 0
+#define DEBUG 1
 
 #include "xshelper/xshelper.h"
 
@@ -76,7 +76,7 @@ static inline void _finish_deferred_sv (pTHX_ SV** deferred_svp, const char* met
 
 }
 
-void _on_ws_close (pTHX_ my_perl_context_t* my_perl_context, uint16_t code, size_t reasonlen, const U8* reason) {
+void _on_ws_close (pTHX_ my_perl_context_t* my_perl_context, nlws_abstract_loop_t* myloop_p, uint16_t code, size_t reasonlen, const U8* reason) {
     LOG_FUNC;
 
     SV* args[] = {
@@ -88,9 +88,18 @@ void _on_ws_close (pTHX_ my_perl_context_t* my_perl_context, uint16_t code, size
 
     AV* code_reason = av_make( numargs, args );
 
-    SV* arg = newRV_noinc((SV*) code_reason);
+    SV* deferred_args[] = {
+        newSVsv(my_perl_context->courier->done_d),
+        newSVpvs("resolve"),
+        newRV_noinc((SV*) code_reason),
+        NULL,
+    };
 
-    _finish_deferred_sv( aTHX_ &my_perl_context->courier->done_d, "resolve", arg );
+    xsh_call_object_method_void( aTHX_
+        myloop_p->perlobj,
+        "schedule_destroy_and_finish",
+        deferred_args
+    );
 }
 
 void _on_ws_error (pTHX_ my_perl_context_t* my_perl_context, size_t reasonlen, const char* reason) {
@@ -169,14 +178,6 @@ net_lws_wsclient_callback(
         if (my_perl_context->courier_sv) {
             SvREFCNT_dec(my_perl_context->courier_sv);
         }
-
-        SV* logger_obj = my_perl_context->logger_obj;
-
-        nlws_abstract_loop_t* myloop_p = (nlws_abstract_loop_t*) lws_evlib_wsi_to_evlib_pt(wsi);
-
-        lws_context_destroy(myloop_p->lws_context);
-
-        //if (logger_obj) SvREFCNT_dec(logger_obj);
 
         break;
 
@@ -335,8 +336,11 @@ net_lws_wsclient_callback(
 
         courier_t* courier = my_perl_context->courier;
 
+        nlws_abstract_loop_t* myloop_p = (nlws_abstract_loop_t*) lws_evlib_wsi_to_evlib_pt(wsi);
+
         _on_ws_close(aTHX_
             my_perl_context,
+            myloop_p,
             courier->close_status,
             courier->close_reason_length,
             courier->close_reason
@@ -435,10 +439,6 @@ void _populate_extensions (pTHX_ struct lws_extension* extensions, AV* compressi
 #endif
 }
 
-void nlws_logger_start (struct lws_log_cx *cx, int _new) {
-    fprintf(stderr, "refcount _new: %d (refcount=%d)\n", _new, cx->refcount);
-}
-
 /* ---------------------------------------------------------------------- */
 
 MODULE = Net::Libwebsockets     PACKAGE = Net::Libwebsockets
@@ -508,6 +508,11 @@ _get_timeout( UV lws_context_uv )
 
     OUTPUT:
         RETVAL
+
+void
+_lws_context_destroy( UV lws_context_uv )
+    CODE:
+        lws_context_destroy( (struct lws_context*) lws_context_uv );
 
 MODULE = Net::Libwebsockets     PACKAGE = Net::Libwebsockets::WebSocket::Client
 
@@ -628,7 +633,8 @@ _new (SV* hostname, int port, SV* path, SV* compression_sv, SV* subprotocols_sv,
 
         SvREFCNT_inc(connected_d);
         SvREFCNT_inc(headers_ar);
-        if (log_cx) SvREFCNT_inc(logger_obj);
+    fprintf(stderr, "=========== end of _new() initialization\n");
+        //if (log_cx) SvREFCNT_inc(logger_obj);
 
 # ----------------------------------------------------------------------
 
@@ -794,23 +800,25 @@ _new (SV* classname_sv, SV* level_sv, SV* callback)
 
         SV* cb_or_null = (callback && SvOK(callback)) ? SvREFCNT_inc(callback) : NULL;
 
+        nlws_logger_opaque_t* opaque;
+        Newx(opaque, 1, nlws_logger_opaque_t);
+
+        SV* self_sv = xsh_ptr_to_svrv(my_logger_p, gv_stashpv(SvPVbyte_nolen(classname_sv), FALSE));
+
+        *opaque = (nlws_logger_opaque_t) {
+            PERL_CONTEXT_IN_STRUCT
+            .pid = getpid(),
+            .perlobj = self_sv,
+        };
+
         *my_logger_p = (lws_log_cx_t) {
             .lll_flags = level,
-            //.prepend = _log_prepend_cx,
-            .refcount_cb = nlws_logger_start,
+            .refcount_cb = nlws_logger_on_refcount_change,
+            .opaque = opaque,
         };
 
         if (cb_or_null) {
-            nlws_logger_opaque_t* opaque;
-            Newx(opaque, 1, nlws_logger_opaque_t);
-
-            *opaque = (nlws_logger_opaque_t) {
-                PERL_CONTEXT_IN_STRUCT
-                .pid = getpid(),
-                .callback = cb_or_null,
-            };
-
-            my_logger_p->opaque = opaque;
+            opaque->callback = cb_or_null;
 
             my_logger_p->lll_flags |= LLLF_LOG_CONTEXT_AWARE;
             my_logger_p->u.emit_cx = nlws_logger_emit;
@@ -819,7 +827,7 @@ _new (SV* classname_sv, SV* level_sv, SV* callback)
             my_logger_p->u.emit = lwsl_emit_stderr;
         }
 
-        RETVAL = xsh_ptr_to_svrv(my_logger_p, gv_stashpv(SvPVbyte_nolen(classname_sv), FALSE));
+        RETVAL = self_sv;
 
     OUTPUT:
         RETVAL
@@ -836,7 +844,8 @@ DESTROY (SV* self_sv)
                 WARN_DESTROY_AT_DESTRUCT(self_sv);
             }
 
-            SvREFCNT_dec(opaque->callback);
+            if (opaque->callback) SvREFCNT_dec(opaque->callback);
+
             Safefree(opaque);
         }
 

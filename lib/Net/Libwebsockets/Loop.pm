@@ -25,6 +25,25 @@ sub set_lws_context {
     return;
 }
 
+sub schedule_destroy_and_finish {
+    my ($self, $deferred, $deferred_method, $arg) = @_;
+
+    my $ctx = $self->{'lws_context'};
+
+    $self->_do_later(
+        sub {
+
+            # This *MUST* happen from outside LWS, or else
+            # LWS doesn’t properly clean up after itself.
+            Net::Libwebsockets::_lws_context_destroy($ctx) if $ctx;
+
+            $deferred->$deferred_method($arg);
+        },
+    );
+
+    return;
+}
+
 sub _get_set_timer_cr {
     return $_[0]->{'_set_timer_cr'} || die "no timer cr set!";
 }
