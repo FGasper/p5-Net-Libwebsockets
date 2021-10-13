@@ -12,7 +12,7 @@
 
 #include <arpa/inet.h>
 
-#define DEBUG 1
+#define DEBUG 0
 
 #include "xshelper/xshelper.h"
 
@@ -287,14 +287,14 @@ net_lws_wsclient_callback(
 
         if (lws_is_first_fragment(wsi)) {
 
+            my_perl_context->message_type = lws_frame_is_binary(wsi) ? NET_LWS_MESSAGE_TYPE_BINARY : NET_LWS_MESSAGE_TYPE_TEXT;
+
             // In this (generally prevalent) case we can create our SV
             // directly from the incoming frame.
             if (lws_is_final_fragment(wsi)) {
                 _on_ws_message(aTHX_ my_perl_context, newSVpvn_flags(in, len, lws_frame_is_binary(wsi) ? 0 : SVf_UTF8));
                 break;
             }
-
-            my_perl_context->message_type = lws_frame_is_binary(wsi) ? NET_LWS_MESSAGE_TYPE_BINARY : NET_LWS_MESSAGE_TYPE_TEXT;
 
             my_perl_context->content_length = len;
         }
@@ -570,6 +570,8 @@ _new (SV* hostname, int port, SV* path, SV* compression_sv, SV* subprotocols_sv,
 
             .protocols = wsclient_protocols,
 
+            // Ref-counting of logger_obj happens via the logger’s
+            // own reference count.
             .log_cx = log_cx,
         };
 
@@ -622,7 +624,6 @@ _new (SV* hostname, int port, SV* path, SV* compression_sv, SV* subprotocols_sv,
             .userdata = my_perl_context,
 
             .protocol = SvOK(subprotocols_sv) ? xsh_sv_to_str( subprotocols_sv) : NULL,
-            //.log_cx = log_cx,
         };
 
         if (!lws_client_connect_via_info(&client)) {
@@ -633,8 +634,6 @@ _new (SV* hostname, int port, SV* path, SV* compression_sv, SV* subprotocols_sv,
 
         SvREFCNT_inc(connected_d);
         SvREFCNT_inc(headers_ar);
-    fprintf(stderr, "=========== end of _new() initialization\n");
-        //if (log_cx) SvREFCNT_inc(logger_obj);
 
 # ----------------------------------------------------------------------
 

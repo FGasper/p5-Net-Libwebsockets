@@ -21,7 +21,7 @@ void nlws_logger_on_refcount_change (struct lws_log_cx *cx, int _new) {
     nlws_logger_opaque_t* opaque = cx->opaque;
 
     PERL_CONTEXT_FROM_STRUCT(opaque);
-fprintf(stderr, "%s: refcount: %d (%d)\n", PL_phase_names[PL_phase], cx->refcount, _new);
+//fprintf(stderr, "%s: refcount: %d (%d)\n", PL_phase_names[PL_phase], cx->refcount, _new);
 
     while (_new > 0) {
         SvREFCNT_inc(opaque->perlobj);
