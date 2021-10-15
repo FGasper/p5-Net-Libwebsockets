@@ -38,6 +38,7 @@ my $url = $ARGV[0] or die "Need URL! (Try: ws://echo.websocket.org)\n";
         headers => [ 'X-Foo' => 'bar' ],
         logger => Net::Libwebsockets::Logger->new(
             #level => 0b11111111111,
+            level => Net::Libwebsockets::LLL_ERR | Net::Libwebsockets::LLL_WARN,
             callback => sub {
                 use Data::Dumper;
                 print STDERR ">> $_[0] $_[1]\n";

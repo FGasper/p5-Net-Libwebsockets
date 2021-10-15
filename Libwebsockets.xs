@@ -12,7 +12,7 @@
 
 #include <arpa/inet.h>
 
-#define DEBUG 0
+#define DEBUG 1
 
 #include "xshelper/xshelper.h"
 
@@ -623,7 +623,6 @@ _new (SV* hostname, int port, SV* path, SV* compression_sv, SV* subprotocols_sv,
                 .secs_since_valid_hangup = ping_timeout,
             },
         };
-    sv_dump(done_d);
 
         const char* hostname_str = xsh_sv_to_str(hostname);
 

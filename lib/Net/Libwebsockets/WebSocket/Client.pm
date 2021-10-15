@@ -264,7 +264,7 @@ sub connect {
 
             return $_[0] if $STATUS_IS_ACCEPTABLE{$status};
 
-            die Net::Libwebsockets::X->create($status, $reason);
+            die Net::Libwebsockets::X->create('WebSocketClose', $status, $reason);
         }
     );
 }

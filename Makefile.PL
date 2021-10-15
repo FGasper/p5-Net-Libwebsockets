@@ -7,15 +7,15 @@ use ExtUtils::CChecker;
 use ExtUtils::PkgConfig;
 
 my @extra_cflags = (
-    '-I/Users/felipe/code/libwebsockets/build/include',
+#    '-I/Users/felipe/code/libwebsockets/build/include',
 );
 
 my @extra_lddlflags = (
-    '-Wl,-rpath,/Users/felipe/code/libwebsockets/build/lib',
-    '-L/Users/felipe/code/libwebsockets/build/lib',
+#    '-Wl,-rpath,/Users/felipe/code/libwebsockets/build/lib',
+#    '-L/Users/felipe/code/libwebsockets/build/lib',
 );
 
-local $ENV{'PKG_CONFIG_PATH'} = '/Users/felipe/code/libwebsockets/build';
+#local $ENV{'PKG_CONFIG_PATH'} = '/Users/felipe/code/libwebsockets/build';
 
 my $PKG = 'libwebsockets';
 

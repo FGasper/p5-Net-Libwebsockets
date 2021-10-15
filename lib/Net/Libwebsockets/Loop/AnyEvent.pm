@@ -48,6 +48,7 @@ sub add_to_fd {
             fh => $fd,
             poll => 'r',
             cb => sub {
+print "===== FD $fd readable\n";
                 Net::Libwebsockets::_lws_service_fd_read($ctx, $fd);
                 $set_timer_cr->();
             },
