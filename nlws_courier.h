@@ -21,8 +21,6 @@ typedef struct {
     unsigned on_binary_count;
     SV** on_binary;
 
-    SV* done_d;
-
     struct lws_ring *ring;
     unsigned consume_pending_count;
 

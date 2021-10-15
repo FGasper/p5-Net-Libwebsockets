@@ -24,11 +24,13 @@ WebSocket with L<AnyEvent>:
 
     my $cv = AE::cv();
 
-    Net::Libwebsockets::WebSocket::Client::connect(
+    my $done_p = Net::Libwebsockets::WebSocket::Client::connect(
         url   => 'wss://echo.websocket.org',
         event => 'AnyEvent',
-    )->then(
-        sub ($courier) {
+        on_ready => sub ($courier) {
+
+            # $courier ferries messages between the caller and the peer:
+
             $courier->send_text( $characters );
             $courier->send_binary( $bytes );
 
@@ -36,18 +38,7 @@ WebSocket with L<AnyEvent>:
             # a warning is thrown.
             $courier->on_text( sub ($characters) { .. } );
             $courier->on_binary( sub ($bytes) { .. } );
-
-            return $courier->done_p();
         },
-    )->finally($cv);
-
-    # $connect_p resolves when the WS handshake completes successfully.
-    # The value is an object, called a “courier”, that ferries messages
-    # between the caller and the peer.
-
-    my $done_p = $connect_p->then(
-
-
     );
 
     # This promise finishes when the connection is done:
@@ -64,29 +55,27 @@ WebSocket with L<AnyEvent>:
         sub ($err) {
             warn "WebSocket non-success: $err";
         },
-    );
+    )->finally($cv);
 
 =head1 DESCRIPTION
 
-Several CPAN modules implement the
-L<WebSocket|https://www.rfc-editor.org/rfc/rfc6455.html> protocol for
-use in Perl, but as of this writing they all implement the entire protocol
-in pure Perl.
-
-This module provides a WebSocket implementation for Perl via XS and
+This module provides a Perl binding to
 L<libwebsockets|https://libwebsockets.org/> (aka “LWS”), a lightweight C
-library.
+library that provides client and server implementations of
+L<WebSocket|https://www.rfc-editor.org/rfc/rfc6455.html>
+and L<HTTP/2|https://httpwg.org/specs/rfc7540.html>, among other
+protocols.
 
 =head1 STATUS
 
-This module is B<EXPERIMENTAL>, but it should be useful enough
-to play with.
+This module currently only implements WebSocket, and only as a client.
+It is B<EXPERIMENTAL>, but it should be useful enough to play with.
 
 Note the following:
 
 =over
 
-=item * This library needs LWS version 4.3.0 or later.
+=item * LWS version 4.3.0 or later is required.
 
 =item * Some LWS builds lack WebSocket compression support.
 
@@ -94,7 +83,7 @@ Note the following:
 
 =head1 EVENT LOOP SUPPORT
 
-This library support most of Perl’s popular event loops via either
+This module supports most of Perl’s popular event loops via either
 L<IO::Async> or L<AnyEvent>.
 
 =head1 LOGGING
@@ -140,12 +129,12 @@ see LWS’s documentation.
 
 =over
 
-=item * C<NLWS_LWS_HAS_PMD> - A boolean that indicates whether
+=item * C<HAS_PMD> - A boolean that indicates whether
 WebSocket compression (i.e., L<per-message deflate|https://datatracker.ietf.org/doc/html/rfc7692#page-12>, or C<PMD>) is available.
 
 =item * Log levels: C<LLL_ERR> et al. (L<See here for the others.|https://libwebsockets.org/lws-api-doc-master/html/group__log.html>)
 
-=item * TLS/SSL-related: C<LCCSCF_ALLOW_SELFSIGNED>, C<LCCSCF_SKIP_SERVER_CERT_HOSTNAME_CHECK>, C<LCCSCF_ALLOW_EXPIRED>, C<LCCSCF_ALLOW_INSECURE>, C<LCCSCF_USE_SSL>
+=item * TLS/SSL-related: C<LCCSCF_ALLOW_SELFSIGNED>, C<LCCSCF_SKIP_SERVER_CERT_HOSTNAME_CHECK>, C<LCCSCF_ALLOW_EXPIRED>, C<LCCSCF_ALLOW_INSECURE>
 
 =back
 

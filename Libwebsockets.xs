@@ -27,6 +27,7 @@
     warn("Destroying %" SVf " at global destruction!\n", sv);
 
 #if DEBUG
+//#include <execinfo.h>
 #define LOG_FUNC fprintf(stderr, "%s\n", __func__)
 #else
 #define LOG_FUNC
@@ -50,7 +51,7 @@ typedef struct {
     SV* courier_sv;
 } pause_t;
 
-static inline void _finish_deferred_sv (pTHX_ SV** deferred_svp, const char* methname, SV* payload) {
+static inline void _finish_deferred_sv (pTHX_ SV* loop_sv, SV** deferred_svp, const char* methname, SV* payload) {
     if (DEBUG) warn("finishing deferred (payload=%p)\n", payload);
 
     if (!*deferred_svp) croak("Can’t %s(); already finished!", methname);
@@ -63,17 +64,20 @@ static inline void _finish_deferred_sv (pTHX_ SV** deferred_svp, const char* met
     //
     *deferred_svp = NULL;
 
-    if (payload) {
-        SV* args[] = { payload, NULL };
-
-        xsh_call_object_method_void( aTHX_ deferred_sv, methname, args );
-    }
-    else {
-        xsh_call_object_method_void( aTHX_ deferred_sv, methname, NULL );
-    }
+    SV* deferred_args[] = {
+        newSVsv(deferred_sv),
+        newSVpv(methname, 0),
+        payload,
+        NULL,
+    };
 
     SvREFCNT_dec(deferred_sv);
 
+    xsh_call_object_method_void( aTHX_
+        loop_sv,
+        "schedule_destroy_and_finish",
+        deferred_args
+    );
 }
 
 void _on_ws_close (pTHX_ my_perl_context_t* my_perl_context, nlws_abstract_loop_t* myloop_p, uint16_t code, size_t reasonlen, const U8* reason) {
@@ -88,33 +92,23 @@ void _on_ws_close (pTHX_ my_perl_context_t* my_perl_context, nlws_abstract_loop_
 
     AV* code_reason = av_make( numargs, args );
 
-    SV* deferred_args[] = {
-        newSVsv(my_perl_context->courier->done_d),
-        newSVpvs("resolve"),
-        newRV_noinc((SV*) code_reason),
-        NULL,
-    };
-
-    xsh_call_object_method_void( aTHX_
+    _finish_deferred_sv( aTHX_
         myloop_p->perlobj,
-        "schedule_destroy_and_finish",
-        deferred_args
+        &my_perl_context->done_d,
+        "resolve",
+        newRV_noinc((SV*) code_reason)
     );
 }
 
-void _on_ws_error (pTHX_ my_perl_context_t* my_perl_context, size_t reasonlen, const char* reason) {
+void _on_ws_error (pTHX_ my_perl_context_t* my_perl_context, nlws_abstract_loop_t* myloop_p, size_t reasonlen, const char* reason) {
     LOG_FUNC;
 
-    SV** deferred_svp;
+    SV** deferred_svp = &my_perl_context->done_d;
 
-    if (my_perl_context->courier) {
-        deferred_svp = &my_perl_context->courier->done_d;
-    }
-    else {
-        deferred_svp = &my_perl_context->connect_d;
-    }
+    // TODO: Should be an object.
+    SV* value = newSVpvn(reason, reasonlen);
 
-    _finish_deferred_sv( aTHX_ deferred_svp, "reject", newSVpvn(reason, reasonlen) );
+    _finish_deferred_sv( aTHX_ myloop_p->perlobj, deferred_svp, "reject", value );
 }
 
 void _on_ws_message(pTHX_ my_perl_context_t* my_perl_context, SV* msgsv) {
@@ -229,7 +223,18 @@ net_lws_wsclient_callback(
         SV* courier_sv = xsh_ptr_to_svrv(courier, gv_stashpv(COURIER_CLASS, FALSE));
         my_perl_context->courier_sv = courier_sv;
 
-        _finish_deferred_sv( aTHX_ &my_perl_context->connect_d, "resolve", newSVsv(courier_sv) );
+        SV* args[] = {
+            newSVsv(courier_sv),
+            NULL,
+        };
+
+        xsh_call_sv_trap_void(
+            my_perl_context->on_ready,
+            args,
+            "on_ready"
+        );
+
+        SvREFCNT_dec(my_perl_context->on_ready);
 
         } break;
 
@@ -279,9 +284,11 @@ net_lws_wsclient_callback(
 
         } break;
 
-    case LWS_CALLBACK_CLIENT_CONNECTION_ERROR:
-        _on_ws_error(aTHX_ my_perl_context, len, in);
-        break;
+    case LWS_CALLBACK_CLIENT_CONNECTION_ERROR: {
+        nlws_abstract_loop_t* myloop_p = (nlws_abstract_loop_t*) lws_evlib_wsi_to_evlib_pt(wsi);
+
+        _on_ws_error(aTHX_ my_perl_context, myloop_p, len, in);
+        } break;
 
     case LWS_CALLBACK_CLIENT_RECEIVE: {
 
@@ -446,12 +453,19 @@ MODULE = Net::Libwebsockets     PACKAGE = Net::Libwebsockets
 PROTOTYPES: DISABLE
 
 BOOT:
-    newCONSTSUB(gv_stashpv("Net::Libwebsockets", FALSE), "LCCSCF_USE_SSL", newSVuv(LCCSCF_USE_SSL));
+    // ----------------------------------------------------------------------
+    // LWS config:
+    newCONSTSUB(gv_stashpv("Net::Libwebsockets", FALSE), "HAS_PMD", boolSV(_LWS_HAS_PMD));
+
+    // ----------------------------------------------------------------------
+    // TLS:
     newCONSTSUB(gv_stashpv("Net::Libwebsockets", FALSE), "LCCSCF_ALLOW_SELFSIGNED", newSVuv(LCCSCF_ALLOW_SELFSIGNED));
     newCONSTSUB(gv_stashpv("Net::Libwebsockets", FALSE), "LCCSCF_SKIP_SERVER_CERT_HOSTNAME_CHECK", newSVuv(LCCSCF_SKIP_SERVER_CERT_HOSTNAME_CHECK));
     newCONSTSUB(gv_stashpv("Net::Libwebsockets", FALSE), "LCCSCF_ALLOW_EXPIRED", newSVuv(LCCSCF_ALLOW_EXPIRED));
     newCONSTSUB(gv_stashpv("Net::Libwebsockets", FALSE), "LCCSCF_ALLOW_INSECURE", newSVuv(LCCSCF_ALLOW_INSECURE));
-    newCONSTSUB(gv_stashpv("Net::Libwebsockets", FALSE), "NLWS_LWS_HAS_PMD", boolSV(_LWS_HAS_PMD));
+
+    // ----------------------------------------------------------------------
+    // Logging:
     newCONSTSUB(gv_stashpv("Net::Libwebsockets", FALSE), "LLL_ERR", newSVuv(LLL_ERR));
     newCONSTSUB(gv_stashpv("Net::Libwebsockets", FALSE), "LLL_WARN", newSVuv(LLL_WARN));
     newCONSTSUB(gv_stashpv("Net::Libwebsockets", FALSE), "LLL_NOTICE", newSVuv(LLL_NOTICE));
@@ -464,8 +478,10 @@ BOOT:
     newCONSTSUB(gv_stashpv("Net::Libwebsockets", FALSE), "LLL_LATENCY", newSVuv(LLL_LATENCY));
     newCONSTSUB(gv_stashpv("Net::Libwebsockets", FALSE), "LLL_USER", newSVuv(LLL_USER));
     newCONSTSUB(gv_stashpv("Net::Libwebsockets", FALSE), "LLL_THREAD", newSVuv(LLL_THREAD));
+
     // ----------------------------------------------------------------------
     // Privates:
+    newCONSTSUB(gv_stashpv("Net::Libwebsockets", FALSE), "_LCCSCF_USE_SSL", newSVuv(LCCSCF_USE_SSL));
     newCONSTSUB(gv_stashpv("Net::Libwebsockets", FALSE), "_LWS_EV_READ", newSVuv(LWS_EV_READ));
     newCONSTSUB(gv_stashpv("Net::Libwebsockets", FALSE), "_LWS_EV_WRITE", newSVuv(LWS_EV_WRITE));
 
@@ -519,7 +535,7 @@ MODULE = Net::Libwebsockets     PACKAGE = Net::Libwebsockets::WebSocket::Client
 PROTOTYPES: DISABLE
 
 void
-_new (SV* hostname, int port, SV* path, SV* compression_sv, SV* subprotocols_sv, SV* headers_ar, int tls_opts, unsigned ping_interval, unsigned ping_timeout, SV* loop_obj, SV* connected_d, SV* logger_obj)
+_new (SV* hostname, int port, SV* path, SV* compression_sv, SV* subprotocols_sv, SV* headers_ar, int tls_opts, unsigned ping_interval, unsigned ping_timeout, SV* loop_obj, SV* done_d, SV* on_ready_sv, SV* logger_obj)
     CODE:
         assert(SvROK(compression_sv));
         assert(SVt_PVAV == SvTYPE(SvRV(compression_sv)));
@@ -594,7 +610,8 @@ _new (SV* hostname, int port, SV* path, SV* compression_sv, SV* subprotocols_sv,
             .courier_sv = NULL,
 
             // We bump the refcounts of these below:
-            .connect_d = connected_d,
+            .on_ready = on_ready_sv,
+            .done_d   = done_d,
             .headers_ar = headers_ar,
 
             .logger_obj = logger_obj,
@@ -606,6 +623,7 @@ _new (SV* hostname, int port, SV* path, SV* compression_sv, SV* subprotocols_sv,
                 .secs_since_valid_hangup = ping_timeout,
             },
         };
+    sv_dump(done_d);
 
         const char* hostname_str = xsh_sv_to_str(hostname);
 
@@ -626,13 +644,19 @@ _new (SV* hostname, int port, SV* path, SV* compression_sv, SV* subprotocols_sv,
             .protocol = SvOK(subprotocols_sv) ? xsh_sv_to_str( subprotocols_sv) : NULL,
         };
 
+        // lws_client_connect_via_info() will use our client
+        // callback, so we report a failure there via the promise
+        // rather than via croak. Thus, bump the refcount here.
+        //
+        SvREFCNT_inc(done_d);
+
         if (!lws_client_connect_via_info(&client)) {
-            Safefree(extensions_p);
+            if (extensions_p) Safefree(extensions_p);
             lws_context_destroy(context);
-            croak("lws connect failed");
+            return;
         }
 
-        SvREFCNT_inc(connected_d);
+        SvREFCNT_inc(on_ready_sv);
         SvREFCNT_inc(headers_ar);
 
 # ----------------------------------------------------------------------
@@ -685,16 +709,6 @@ on_binary (SV* self_sv, SV* cbref)
         courier->on_binary_count++;
         Renew(courier->on_binary, courier->on_binary_count, SV*);
         courier->on_binary[courier->on_binary_count - 1] = cbref;
-
-SV*
-done_p (SV* self_sv)
-    CODE:
-        courier_t* courier = xsh_svrv_to_ptr(self_sv);
-
-        RETVAL = xsh_call_object_method_scalar(aTHX_ courier->done_d, "promise", NULL);
-
-    OUTPUT:
-        RETVAL
 
 void
 send_text (SV* self_sv, SV* payload_sv)

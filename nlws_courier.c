@@ -44,7 +44,6 @@ courier_t* nlws_create_courier (pTHX_ struct lws *wsi) {
         .wsi = wsi,
         .pid = getpid(),
         .ring = ring,
-        .done_d = _new_deferred_sv(aTHX),
 
         // Everything else is initialized to 0/NULL.
     };
@@ -68,8 +67,6 @@ void nlws_destroy_courier (pTHX_ courier_t* courier) {
 
         Safefree(courier->on_binary);
     }
-
-    if (courier->done_d) SvREFCNT_dec(courier->done_d);
 
     lws_ring_destroy(courier->ring);
 

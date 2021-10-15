@@ -18,7 +18,8 @@ typedef struct {
     // This needs to last throughout the session:
     struct lws_extension* extensions;
 
-    SV* connect_d;
+    SV* on_ready;
+    SV* done_d;
 
     SV* headers_ar;
 

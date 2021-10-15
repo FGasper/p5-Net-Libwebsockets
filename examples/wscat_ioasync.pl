@@ -25,8 +25,7 @@ my $url = $ARGV[0] or die "Need URL! (Try: ws://echo.websocket.org)\n";
         url => $url,
         event => [ 'IOAsync', $loop ],
         headers => [ 'X-Foo' => 'bar' ],
-    )->then(
-        sub ($ws) {
+        on_ready => sub ($ws) {
             print STDERR "============ connected!!\n";
 
             # 1. Anything we receive from WS should go to STDOUT:
@@ -90,8 +89,6 @@ my $url = $ARGV[0] or die "Need URL! (Try: ws://echo.websocket.org)\n";
                     }
                 },
             );
-
-            return $ws->done_p();
         },
     )->finally( sub {
         $loop->stop();

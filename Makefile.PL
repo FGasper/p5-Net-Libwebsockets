@@ -7,13 +7,15 @@ use ExtUtils::CChecker;
 use ExtUtils::PkgConfig;
 
 my @extra_cflags = (
-#    '-I/Users/felipe/code/libwebsockets/build/include',
+    '-I/Users/felipe/code/libwebsockets/build/include',
 );
 
 my @extra_lddlflags = (
-#    '-Wl,-rpath,/Users/felipe/code/libwebsockets/build/lib',
-#    '-L/Users/felipe/code/libwebsockets/build/lib',
+    '-Wl,-rpath,/Users/felipe/code/libwebsockets/build/lib',
+    '-L/Users/felipe/code/libwebsockets/build/lib',
 );
+
+local $ENV{'PKG_CONFIG_PATH'} = '/Users/felipe/code/libwebsockets/build';
 
 my $PKG = 'libwebsockets';
 
@@ -23,7 +25,7 @@ if (!ExtUtils::PkgConfig->exists($PKG)) {
 
 my @pc_cflags = split m< >, ExtUtils::PkgConfig->cflags($PKG);
 
-my @libs = split m< >, ExtUtils::PkgConfig->libs_only_l($PKG);
+my @libs = split m< >, ExtUtils::PkgConfig->libs($PKG);
 
 my @pc_lddlflags = map { split m< > } (
     ExtUtils::PkgConfig->libs_only_L($PKG),
@@ -40,12 +42,15 @@ my @lddlflags = (
     @pc_lddlflags,
 );
 
+use Data::Dumper;
+print STDERR Dumper \@cflags, \@lddlflags, \@libs;
+
 my $cc = ExtUtils::CChecker->new( quiet => 0 );
 $cc->push_extra_compiler_flags(@cflags);
 $cc->push_extra_linker_flags(@lddlflags, @libs);
 
 {
-    print "Verify LWS custom event loop support ...\n";
+    print "Verifying LWS custom event loop support ...\n";
 
     my $has_event_c = <<END;
     #include <libwebsockets.h>
@@ -143,13 +148,12 @@ WriteMakefile(
     PREREQ_PM => {
         'Promise::XS' => 0,
         'URI::Split' => 0,
-        'IO::FDSaver' => 0,
     },
 
     TEST_REQUIRES => {
         'Test::More' => 0,
         'Test::Deep' => 0,
         'Test::FailWarnings' => 0,
-        'File::Temp' => 0,
     },
 );
+print $INC{'ExtUtils/Liblist/Kid.pm'};

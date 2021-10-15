@@ -30,19 +30,20 @@ my $url = $ARGV[0] or die "Need URL! (Try: ws://echo.websocket.org)\n";
 
     my $in_w;
 
+#Net::Libwebsockets::set_log_level(0b11111111111);
+
     Net::Libwebsockets::WebSocket::Client::connect(
         url => $url,
         event => 'AnyEvent',
         headers => [ 'X-Foo' => 'bar' ],
         logger => Net::Libwebsockets::Logger->new(
-            level => 0b11111111111,
+            #level => 0b11111111111,
             callback => sub {
                 use Data::Dumper;
-                print STDERR Dumper [ logger_callback => @_];
+                print STDERR ">> $_[0] $_[1]\n";
             },
         ),
-    )->then(
-        sub ($ws) {
+        on_ready => sub ($ws) {
 
             # 1. Anything we receive from WS should go to STDOUT:
 
@@ -102,8 +103,6 @@ my $url = $ARGV[0] or die "Need URL! (Try: ws://echo.websocket.org)\n";
                     }
                 },
             );
-
-            return $ws->done_p();
         },
     )->then(
         $cv,

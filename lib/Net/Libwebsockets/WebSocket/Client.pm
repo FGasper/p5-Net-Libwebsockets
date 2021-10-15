@@ -7,16 +7,26 @@ use Carp       ();
 use URI::Split ();
 
 use Net::Libwebsockets ();
+use Net::Libwebsockets::X ();
 use Promise::XS ();
+
+my %STATUS_IS_ACCEPTABLE;
+
+BEGIN {
+    %STATUS_IS_ACCEPTABLE = map { $_ => 1 } (
+        1000,   # explicit success code
+        1005,   # no close code given; assume success
+    );
+}
 
 #----------------------------------------------------------------------
 
 =head1 FUNCTIONS
 
-=head2 promise($courier) = connect( %OPTS )
+=head2 promise(\@code_and_reason) = connect( %OPTS )
 
-Starts a WebSocket connection. Returns a promise that, on success,
-resolves to a L<Net::Libwebsockets::WebSocket::Courier> instance.
+Starts a WebSocket connection. Returns a promise that indicates that
+connection’s final status.
 
 Required %OPTS are:
 
@@ -35,6 +45,11 @@ Recognized values are:
 is an L<IO::Async::Loop> instance.
 
 =back
+
+=item * C<on_ready> - Callback that “runs” the WebSocket connection
+once started. Receives a L<Net::Libwebsockets::WebSocket::Courier>
+instance. If this throws, that exception will cause C<connect()>’s
+returned promise to reject with that value.
 
 =back
 
@@ -76,7 +91,15 @@ For permessage-deflate those attributes can be any or all of:
 
 =over
 
-=item * C<local_context_mode> - either C<takeover> or C<no_takeover>
+=item * C<local_context_mode> - one of:
+
+=over
+
+=item * C<takeover> - retain deflate’s dictionary between messages
+
+=item * C<no_takeover> - new dictionary for each message
+
+=back
 
 =item * C<peer_context_mode> - ^^ ditto
 
@@ -106,9 +129,17 @@ we drop the connection. Defaults to 4m59s.
 
 =back
 
+=head3 Return Value
+
+Returns a promise that completes once the WebSocket connection is done.
+If the connection shuts down successfully then the promise resolves
+with an array reference of C<[ $code, $reason ]>; otherwise the promise
+rejects with a L<Net::Libwebsockets::X::WebSocketClose> or
+L<Net::Libwebsockets::X::WebSocketFail> instance.
+
 =cut
 
-my @_REQUIRED = qw( url event );
+my @_REQUIRED = qw( url event on_ready );
 my %_KNOWN = map { $_ => 1 } (
     @_REQUIRED,
     'subprotocols',
@@ -204,13 +235,13 @@ sub connect {
 
     my ($hostname, $port) = ($1, $2);
 
-    my $tls_flags = ($scheme eq 'ws') ? 0 : Net::Libwebsockets::LCCSCF_USE_SSL;
+    my $tls_flags = ($scheme eq 'ws') ? 0 : Net::Libwebsockets::_LCCSCF_USE_SSL;
 
     $port ||= $tls_flags ? 443 : 80;
 
     $tls_flags |= $tls_opt if $tls_opt;
 
-    my $connected_d = Promise::XS::deferred();
+    my $done_d = Promise::XS::deferred();
 
     my $loop_obj = _get_loop_obj($event);
 
@@ -222,11 +253,20 @@ sub connect {
         $tls_flags,
         @opts{'ping_interval', 'ping_timeout'},
         $loop_obj,
-        $connected_d,
+        $done_d,
+        $opts{'on_ready'},
         $logger,
     );
 
-    return $connected_d->promise();
+    return $done_d->promise()->then(
+        sub {
+            my ($status, $reason) = @{ $_[0] };
+
+            return $_[0] if $STATUS_IS_ACCEPTABLE{$status};
+
+            die Net::Libwebsockets::X->create($status, $reason);
+        }
+    );
 }
 
 sub _validate_deflate_max_window_bits {
@@ -328,11 +368,11 @@ sub _compression_to_ext {
             _croak_bad_compression($comp_in);
         }
     }
-    elsif (Net::Libwebsockets::NLWS_LWS_HAS_PMD) {
+    elsif (Net::Libwebsockets::HAS_PMD) {
         push @exts, [ deflate => _deflate_to_string() ];
     }
 
-    if (@exts && !Net::Libwebsockets::NLWS_LWS_HAS_PMD) {
+    if (@exts && !Net::Libwebsockets::HAS_PMD) {
         Carp::croak "This Libwebsockets lacks WebSocket compression support";
     }
 

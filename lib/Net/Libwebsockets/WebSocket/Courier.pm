@@ -41,16 +41,6 @@ Enqueues a text message to be sent. $CHARACTERS is a character string.
 
 Like C<send_text()> but sends a binary string.
 
-=head2 $promise = I<OBJ>->done_p()
-
-Returns a promise that completes once the WebSocket connection is done.
-If the connection shuts down successfully then the promise resolves
-with an array reference of C<[ $code, $reason ]>; otherwise the promise
-rejects with a L<Net::Libwebsockets::X::WebSocketClose> or
-L<Net::Libwebsockets::X::WebSocketFail> instance.
-
-TODO: What if we initiated the shutdown?
-
 =head2 $promise = I<OBJ>->close( [ $CODE [, $REASON_CHARS ] ] )
 
 Initiates a shutdown of the WebSocket connection. ($REASON_CHARS is a
@@ -58,7 +48,7 @@ text/decoded string.)
 
 =head2 $pause_obj = I<OBJ>->pause()
 
-Returns an opaque object, during whose lifetime I<OBJ> will not accept
+Returns an opaque object during whose lifetime I<OBJ> will not accept
 incoming WebSocket messages.
 
 This is useful for handling/applying backpressure
