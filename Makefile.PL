@@ -148,6 +148,7 @@ WriteMakefile(
     PREREQ_PM => {
         'Promise::XS' => 0,
         'URI::Split' => 0,
+        'IO::SigGuard' => 0,
     },
 
     TEST_REQUIRES => {
@@ -156,4 +157,3 @@ WriteMakefile(
         'Test::FailWarnings' => 0,
     },
 );
-print $INC{'ExtUtils/Liblist/Kid.pm'};
