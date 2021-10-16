@@ -45,7 +45,7 @@ WebSocket with L<AnyEvent>:
     #   - On successful close: resolve with [ $code, $reason ]
     #
     #   - On non-success close: promise rejects with
-    #       Net::Libwebsockets::X::WebSocket::BadClose.
+    #       Net::Libwebsockets::X::WebSocketClose.
     #
     #   - On connection error: promise rejects with
     #       a string that describes the failure.

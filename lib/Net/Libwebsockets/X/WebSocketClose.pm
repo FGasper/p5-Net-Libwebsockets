@@ -7,11 +7,12 @@ use warnings;
 
 =head1 NAME
 
-Net::Libwebsockets::X::WebSocketClose - WebSocket non-success close
+Net::Libwebsockets::X::WebSocketClose - Non-success WebSocket close
 
 =head1 DESCRIPTION
 
-This class represents a WebSocket close code other than 1000 or empty.
+This class represents a WebSocket close whose code is not a recognized
+success state: 1000, or empty.
 
 Note that high-range close codes (e.g., 4xxx) also trigger this, so if
 your application is going to be sending those, be sure to catch this error
@@ -26,13 +27,11 @@ use parent 'Net::Libwebsockets::X::Base';
 #----------------------------------------------------------------------
 
 sub _new {
-    my ($class, $close, $reason) = @_;
+    my ($class, $code, $reason) = @_;
 
-    my $str = length($reason) ? "WebSocket closed $close ($reason)" : "WebSocket closed $close without a reason";
+    my $str = length($reason) ? "WebSocket closed $code ($reason)" : "WebSocket closed $code without a reason";
 
-    my $self = $class->SUPER::_new($str, $close, $reason);
-
-    return bless $self, $class;
+    return $class->SUPER::_new($str, code => $code, reason => $reason);
 }
 
 1;

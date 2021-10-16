@@ -105,10 +105,28 @@ void _on_ws_error (pTHX_ my_perl_context_t* my_perl_context, nlws_abstract_loop_
 
     SV** deferred_svp = &my_perl_context->done_d;
 
-    // TODO: Should be an object.
     SV* value = newSVpvn(reason, reasonlen);
 
-    _finish_deferred_sv( aTHX_ myloop_p->perlobj, deferred_svp, "reject", value );
+    SV* create_args[] = {
+        newSVpv("ConnectionFailed", 0),
+        value,
+        NULL
+    };
+
+    SV* x_class_sv = newSVpv("Net::Libwebsockets::X", 0);
+sv_dump(x_class_sv);
+
+    //load_module(0, x_class_sv, NULL);
+//sv_dump(x_class_sv);
+
+    SV* err_obj = xsh_call_object_method_scalar( aTHX_
+        x_class_sv,
+        "create",
+        create_args
+    );
+sv_dump(err_obj);
+
+    _finish_deferred_sv( aTHX_ myloop_p->perlobj, deferred_svp, "reject", err_obj );
 }
 
 void _on_ws_message(pTHX_ my_perl_context_t* my_perl_context, SV* msgsv) {
