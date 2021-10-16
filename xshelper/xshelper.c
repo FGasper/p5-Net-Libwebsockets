@@ -115,10 +115,13 @@ SV* xsh_call_object_method_scalar (pTHX_ SV* object, const char* methname, SV** 
 
     int got = call_method( methname, G_SCALAR );
 
+    SPAGAIN;
+
     assert(got < 2);
 
     SV* ret = got ? SvREFCNT_inc(POPs) : NULL;
 
+    PUTBACK;
     FREETMPS;
     LEAVE;
 
