@@ -640,7 +640,7 @@ _new (SV* hostname, int port, SV* path, SV* compression_sv, SV* subprotocols_sv,
         }
 
         my_perl_context_t* my_perl_context;
-        Newxz(my_perl_context, 1, my_perl_context_t); // TODO clean up
+        Newxz(my_perl_context, 1, my_perl_context_t);
 
         *my_perl_context = (my_perl_context_t) {
             PERL_CONTEXT_IN_STRUCT
