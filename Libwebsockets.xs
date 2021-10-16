@@ -45,7 +45,7 @@
 #define _LWS_HAS_PMD 0
 #endif
 
-#define WS_CLOSE_IS_FAILURE(code) (code == LWS_CLOSE_STATUS_NOSTATUS || code == LWS_CLOSE_STATUS_NORMAL)
+#define WS_CLOSE_IS_FAILURE(code) (code != LWS_CLOSE_STATUS_NOSTATUS && code != LWS_CLOSE_STATUS_NORMAL)
 
 typedef struct {
     SV* courier_sv;
@@ -80,23 +80,66 @@ static inline void _finish_deferred_sv (pTHX_ SV* loop_sv, SV** deferred_svp, co
     );
 }
 
+SV* _create_err_obj (pTHX_ const char* type, unsigned argscount, ...) {
+    va_list args;
+    va_start(args, argscount);
+
+    SV* create_args[argscount+2];
+    create_args[0] = newSVpv(type, 0);
+    create_args[argscount+1] = NULL;
+
+    for (unsigned a=0; a<argscount; a++) {
+        create_args[a+1] = va_arg(args, SV*);
+    }
+
+    va_end(args);
+
+    SV* x_class_sv = newSVpvs("Net::Libwebsockets::X");
+
+    load_module(PERL_LOADMOD_NOIMPORT, newSVsv(x_class_sv), NULL);
+
+    return xsh_call_object_method_scalar( aTHX_
+        sv_2mortal(x_class_sv),
+        "create",
+        create_args
+    );
+}
+
 void _on_ws_close (pTHX_ my_perl_context_t* my_perl_context, nlws_abstract_loop_t* myloop_p, uint16_t code, size_t reasonlen, const U8* reason) {
     LOG_FUNC;
 
-    SV* args[] = {
-        newSVuv(code),
-        newSVpvn((const char *) reason, reasonlen),
-    };
+    char* deferred_method;
+    SV* promise_value;
 
-    unsigned numargs = sizeof(args) / sizeof(*args);
+    SV* code_sv = newSVuv(code);
+    SV* reason_sv = newSVpvn((const char *) reason, reasonlen);
 
-    AV* code_reason = av_make( numargs, args );
+    if (WS_CLOSE_IS_FAILURE(code)) {
+        deferred_method = "reject";
+
+        promise_value = _create_err_obj( aTHX_
+            "WebSocketClose",
+            2,
+            code_sv,
+            reason_sv
+        );
+    }
+    else {
+        deferred_method = "resolve";
+
+        SV* args[] = { code_sv, reason_sv };
+
+        unsigned numargs = sizeof(args) / sizeof(*args);
+
+        AV* code_reason = av_make( numargs, args );
+        promise_value = newRV_noinc((SV*) code_reason);
+    }
 
     _finish_deferred_sv( aTHX_
         myloop_p->perlobj,
         &my_perl_context->done_d,
-        "resolve",
-        newRV_noinc((SV*) code_reason)
+        deferred_method,
+        promise_value
     );
 }
 
@@ -105,21 +148,7 @@ void _on_ws_error (pTHX_ my_perl_context_t* my_perl_context, nlws_abstract_loop_
 
     SV** deferred_svp = &my_perl_context->done_d;
 
-    SV* create_args[] = {
-        newSVpv("ConnectionFailed", 0),
-        newSVpvn(reason, reasonlen),
-        NULL,
-    };
-
-    SV* x_class_sv = newSVpvs("Net::Libwebsockets::X");
-
-    load_module(PERL_LOADMOD_NOIMPORT, sv_mortalcopy(x_class_sv), NULL);
-
-    SV* err_obj = xsh_call_object_method_scalar( aTHX_
-        sv_2mortal(x_class_sv),
-        "create",
-        create_args
-    );
+    SV* err_obj = _create_err_obj( aTHX_ "ConnectionFailed", 1, newSVpvn(reason, reasonlen) );
 
     _finish_deferred_sv( aTHX_ myloop_p->perlobj, deferred_svp, "reject", err_obj );
 }
@@ -607,7 +636,7 @@ _new (SV* hostname, int port, SV* path, SV* compression_sv, SV* subprotocols_sv,
         struct lws_context *context = lws_create_context(&info);
         if (!context) {
             if (extensions_p) Safefree(extensions_p);
-            croak("lws init failed");
+            croak("lws_create_context failed");
         }
 
         my_perl_context_t* my_perl_context;
@@ -657,8 +686,8 @@ _new (SV* hostname, int port, SV* path, SV* compression_sv, SV* subprotocols_sv,
         };
 
         // lws_client_connect_via_info() will use our client
-        // callback, so we report a failure there via the promise
-        // rather than via croak. Thus, bump the refcount here.
+        // callback, which reports any failure there via the promise.
+        // We thus bump the promise’s refcount here.
         //
         SvREFCNT_inc(done_d);
 

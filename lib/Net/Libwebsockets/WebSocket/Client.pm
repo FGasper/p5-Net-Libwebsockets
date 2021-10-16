@@ -10,15 +10,6 @@ use Net::Libwebsockets ();
 use Net::Libwebsockets::X ();
 use Promise::XS ();
 
-my %STATUS_IS_ACCEPTABLE;
-
-BEGIN {
-    %STATUS_IS_ACCEPTABLE = map { $_ => 1 } (
-        1000,   # explicit success code
-        1005,   # no close code given; assume success
-    );
-}
-
 #----------------------------------------------------------------------
 
 =head1 FUNCTIONS
@@ -135,7 +126,7 @@ Returns a promise that completes once the WebSocket connection is done.
 If the connection shuts down successfully then the promise resolves
 with an array reference of C<[ $code, $reason ]>; otherwise the promise
 rejects with a L<Net::Libwebsockets::X::WebSocketClose> or
-L<Net::Libwebsockets::X::WebSocketFail> instance.
+L<Net::Libwebsockets::X::ConnectionFailed> instance.
 
 =cut
 
@@ -258,15 +249,7 @@ sub connect {
         $logger,
     );
 
-    return $done_d->promise()->then(
-        sub {
-            my ($status, $reason) = @{ $_[0] };
-
-            return $_[0] if $STATUS_IS_ACCEPTABLE{$status};
-
-            die Net::Libwebsockets::X->create('WebSocketClose', $status, $reason);
-        }
-    );
+    return $done_d->promise();
 }
 
 sub _validate_deflate_max_window_bits {

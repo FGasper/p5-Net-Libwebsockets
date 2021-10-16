@@ -102,6 +102,12 @@ This library supports both LWS’s old/global and new/contextual logging.
 See L<Net::Libwebsockets::Logger> and C<set_log_level()> below for more
 details.
 
+=head1 ERRORS
+
+Most of this module’s error classes extend L<X::Tiny::Base>. Errors that
+are more likely to be programmer misuse than runtime failure are more apt
+to be simple strings.
+
 =head1 SEE ALSO
 
 Other CPAN WebSocket implementations include:
