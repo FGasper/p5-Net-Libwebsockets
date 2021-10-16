@@ -14,7 +14,7 @@ use IO::SigGuard;
 
 $| = 1;
 
-my $url = $ARGV[0] or die "Need URL! (Try: ws://echo.websocket.org)\n";
+my $url = $ARGV[0] or die "Need URL!\n";
 
 {
     my $loop = IO::Async::Loop->new();

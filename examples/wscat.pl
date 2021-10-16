@@ -13,15 +13,12 @@ use Promise::XS;
 
 $Promise::XS::DETECT_MEMORY_LEAKS = 1;
 
-#use IO::Async::Loop;
-#use IO::Async::Stream;
-
 use Net::Libwebsockets::WebSocket::Client ();
 use Net::Libwebsockets::Logger ();
 
 use IO::SigGuard;
 
-my $url = $ARGV[0] or die "Need URL! (Try: ws://echo.websocket.org)\n";
+my $url = $ARGV[0] or die "Need URL!\n";
 
 {
     my $cv = AE::cv();
@@ -29,8 +26,6 @@ my $url = $ARGV[0] or die "Need URL! (Try: ws://echo.websocket.org)\n";
     $_->blocking(0) for (\*STDIN, \*STDOUT);
 
     my $in_w;
-
-#Net::Libwebsockets::set_log_level(0b11111111111);
 
     Net::Libwebsockets::WebSocket::Client::connect(
         url => $url,
@@ -40,7 +35,6 @@ my $url = $ARGV[0] or die "Need URL! (Try: ws://echo.websocket.org)\n";
             #level => 0b11111111111,
             level => Net::Libwebsockets::LLL_ERR | Net::Libwebsockets::LLL_WARN,
             callback => sub {
-                use Data::Dumper;
                 print STDERR ">> $_[0] $_[1]\n";
             },
         ),

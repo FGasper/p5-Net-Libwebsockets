@@ -5,17 +5,18 @@ use Config;
 
 use ExtUtils::CChecker;
 use ExtUtils::PkgConfig;
+use ExtUtils::MakeMaker;
 
-my @extra_cflags = (
-#    '-I/Users/felipe/code/libwebsockets/build/include',
-);
+my $extra_dir;
 
-my @extra_lddlflags = (
-#    '-Wl,-rpath,/Users/felipe/code/libwebsockets/build/lib',
-#    '-L/Users/felipe/code/libwebsockets/build/lib',
-);
+my @extra_cflags = $extra_dir ? "-I$extra_dir/include" : ();
 
-#local $ENV{'PKG_CONFIG_PATH'} = '/Users/felipe/code/libwebsockets/build';
+my @extra_lddlflags = $extra_dir
+    ? ( "-Wl,-rpath,$extra_dir/lib", "-L$extra_dir/lib" )
+    : ()
+;
+
+local $ENV{'PKG_CONFIG_PATH'} = $extra_dir if $extra_dir;
 
 my $PKG = 'libwebsockets';
 
@@ -41,9 +42,6 @@ my @lddlflags = (
     @extra_lddlflags,
     @pc_lddlflags,
 );
-
-use Data::Dumper;
-print STDERR Dumper \@cflags, \@lddlflags, \@libs;
 
 my $cc = ExtUtils::CChecker->new( quiet => 0 );
 $cc->push_extra_compiler_flags(@cflags);
@@ -92,7 +90,6 @@ END
     $lws_has_deflate;
 };
 
-use ExtUtils::MakeMaker;
 # See lib/ExtUtils/MakeMaker.pm for details of how to influence
 # the contents of the Makefile that is written.
 WriteMakefile(
@@ -148,7 +145,6 @@ WriteMakefile(
     PREREQ_PM => {
         'Promise::XS' => 0,
         'URI::Split' => 0,
-        'IO::SigGuard' => 0,
     },
 
     TEST_REQUIRES => {

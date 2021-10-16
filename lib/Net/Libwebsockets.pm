@@ -16,7 +16,7 @@ BEGIN {
 
 =head1 NAME
 
-Net::Libwebsockets - L<libwebsockets|https://libwebsockets.org/> in Perl
+Net::Libwebsockets - L<libwebsockets|https://libwebsockets.org> in Perl
 
 =head1 SYNOPSIS
 
@@ -96,7 +96,7 @@ global-state functions. As of this writing, though, most of LWS’s internal
 logger calls still use the older functions, which means those log
 statements will go out however the global logging is configured, regardless
 of whether there’s a context-specific logging configuration for a given
-action.
+action. Conversion of existing log statements is ongoing.
 
 This library supports both LWS’s old/global and new/contextual logging.
 See L<Net::Libwebsockets::Logger> and C<set_log_level()> below for more
