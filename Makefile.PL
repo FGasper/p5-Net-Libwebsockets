@@ -7,7 +7,18 @@ use ExtUtils::CChecker;
 use ExtUtils::PkgConfig;
 use ExtUtils::MakeMaker;
 
-my $extra_dir;
+my $extra_dir = $ENV{'LWS_BUILD_DIR'};
+
+if ($extra_dir) {
+    print "You say your LWS build is at $extra_dir …$/";
+    print "OK. I’ll prioritize that directory when seeking LWS.$/";
+}
+else {
+    print "In case you need it, you can define environment variable$/";
+    print "LWS_BUILD_DIR to give a specific path where your LWS lives.$/";
+}
+
+print $/;
 
 my @extra_cflags = $extra_dir ? "-I$extra_dir/include" : ();
 
@@ -28,7 +39,7 @@ my @pc_cflags = split m< >, ExtUtils::PkgConfig->cflags($PKG);
 
 my @libs = split m< >, ExtUtils::PkgConfig->libs($PKG);
 
-my @pc_lddlflags = map { split m< > } (
+my @pc_lddlflags = map { $_ ? (split m< >) : () } (
     ExtUtils::PkgConfig->libs_only_L($PKG),
     ExtUtils::PkgConfig->libs_only_other($PKG),
 );

@@ -112,7 +112,11 @@ void _on_ws_close (pTHX_ my_perl_context_t* my_perl_context, nlws_abstract_loop_
     SV* promise_value;
 
     SV* code_sv = newSVuv(code);
-    SV* reason_sv = newSVpvn((const char *) reason, reasonlen);
+    SV* reason_sv = newSVpvn_flags(
+        (const char *) reason,
+        reasonlen,
+        SVf_UTF8
+    );
 
     if (WS_CLOSE_IS_FAILURE(code)) {
         deferred_method = "reject";
@@ -633,10 +637,27 @@ _new (SV* hostname, int port, SV* path, SV* compression_sv, SV* subprotocols_sv,
             .log_cx = log_cx,
         };
 
+        // This function never croaks; it only rejects the promise.
+        // We thus bump the promise’s refcount here.
+        //
+        SvREFCNT_inc(done_d);
+
         struct lws_context *context = lws_create_context(&info);
-        if (!context) {
+        if (1 || !context) {
             if (extensions_p) Safefree(extensions_p);
-            croak("lws_create_context failed");
+
+            _finish_deferred_sv( aTHX_
+                loop_obj,
+                &done_d,
+                "reject",
+                _create_err_obj( aTHX_
+                    "General",
+                    1,
+                    newSVpvs("lws_create_context failed")
+                )
+            );
+
+            return;
         }
 
         my_perl_context_t* my_perl_context;
@@ -684,12 +705,6 @@ _new (SV* hostname, int port, SV* path, SV* compression_sv, SV* subprotocols_sv,
 
             .protocol = SvOK(subprotocols_sv) ? xsh_sv_to_str( subprotocols_sv) : NULL,
         };
-
-        // lws_client_connect_via_info() will use our client
-        // callback, which reports any failure there via the promise.
-        // We thus bump the promise’s refcount here.
-        //
-        SvREFCNT_inc(done_d);
 
         if (!lws_client_connect_via_info(&client)) {
             if (extensions_p) Safefree(extensions_p);

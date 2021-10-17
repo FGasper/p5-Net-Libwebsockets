@@ -1,26 +1,10 @@
-package Net::Libwebsockets;
+# NAME
 
-use strict;
-use warnings;
+Net::Libwebsockets - [libwebsockets](https://libwebsockets.org) in Perl
 
-our $VERSION;
+# SYNOPSIS
 
-use XSLoader ();
-
-BEGIN {
-    $VERSION = '0.01';
-    XSLoader::load();
-}
-
-=encoding utf-8
-
-=head1 NAME
-
-Net::Libwebsockets - L<libwebsockets|https://libwebsockets.org> in Perl
-
-=head1 SYNOPSIS
-
-WebSocket with L<AnyEvent> (L<IO::Async is supported, too):
+WebSocket with [AnyEvent](https://metacpan.org/pod/AnyEvent) (["IO::Async is supported, too):"](#io-async-is-supported-too)
 
     my $cv = AE::cv();
 
@@ -52,19 +36,19 @@ WebSocket with L<AnyEvent> (L<IO::Async is supported, too):
         },
     )->finally($cv);
 
-=head1 DESCRIPTION
+# DESCRIPTION
 
 This module provides a Perl binding to
-L<libwebsockets|https://libwebsockets.org/> (aka “LWS”), a C
+[libwebsockets](https://libwebsockets.org/) (aka “LWS”), a C
 library that provides client and server implementations of
-L<WebSocket|https://www.rfc-editor.org/rfc/rfc6455.html>
-and L<HTTP/2|https://httpwg.org/specs/rfc7540.html>, among other
+[WebSocket](https://www.rfc-editor.org/rfc/rfc6455.html)
+and [HTTP/2](https://httpwg.org/specs/rfc7540.html), among other
 protocols.
 
-=head1 STATUS
+# STATUS
 
 This module currently only implements WebSocket, and only as a client.
-It is B<EXPERIMENTAL>, so all of its interfaces are subject to change,
+It is **EXPERIMENTAL**, so all of its interfaces are subject to change,
 and it can blow up at you in any way at any time.
 
 That said, it’s been in development for some time, and it should be
@@ -75,37 +59,32 @@ by fixing this little module rather than delving into LWS.
 
 Note the following:
 
-=over
-
-=item * LWS version 4.3.0 or later is required.
+- LWS version 4.3.0 or later is required.
 (As of this writing that’s the latest release.)
-
-=item * Some LWS builds lack useful stuff like WebSocket compression
+- Some LWS builds lack useful stuff like WebSocket compression
 or non-blocking DNS queries. If in doubt, check your build.
 
-=back
-
-=head1 BUILDING
+# BUILDING
 
 This module, as of this writing, needs a newer LWS build than most OSes
 provide. To use Net::Libwebsockets, then, you may need to build your own
 LWS, then link this module against that build. To simplify that,
-you can define a C<LWS_BUILD_DIR> environment variable when you run
-this module’s provided F<Makefile.PL> script. C<LWS_BUILD_DIR> tells
-F<Makefile.PL> where to find your custom LWS build, which avoids the
+you can define a `LWS_BUILD_DIR` environment variable when you run
+this module’s provided `Makefile.PL` script. `LWS_BUILD_DIR` tells
+`Makefile.PL` where to find your custom LWS build, which avoids the
 need to install your custom build globally.
 
 As of this writing
-L<LWS’s upstream main branch|https://github.com/warmcat/libwebsockets/tree/main>
+[LWS’s upstream main branch](https://github.com/warmcat/libwebsockets/tree/main)
 includes several useful fixes & improvements beyond what the latest
 release provides. It is thus recommended to build from that branch.
 
-=head1 EVENT LOOP SUPPORT
+# EVENT LOOP SUPPORT
 
 This module supports most of Perl’s popular event loops via either
-L<IO::Async> or L<AnyEvent>.
+[IO::Async](https://metacpan.org/pod/IO::Async) or [AnyEvent](https://metacpan.org/pod/AnyEvent).
 
-=head1 LOGGING
+# LOGGING
 
 LWS historically configured its logging globally; i.e., all LWS contexts
 within a process shared the same logging configuration.
@@ -118,16 +97,16 @@ of whether there’s a context-specific logging configuration for a given
 action. Conversion of existing log statements is ongoing.
 
 This library supports both LWS’s old/global and new/contextual logging.
-See L<Net::Libwebsockets::Logger> and C<set_log_level()> below for more
+See [Net::Libwebsockets::Logger](https://metacpan.org/pod/Net::Libwebsockets::Logger) and `set_log_level()` below for more
 details.
 
-=head1 ERRORS
+# ERRORS
 
-Most of this module’s error classes extend L<X::Tiny::Base>. Errors that
+Most of this module’s error classes extend [X::Tiny::Base](https://metacpan.org/pod/X::Tiny::Base). Errors that
 are more likely to be programmer misuse than runtime failure are more apt
 to be simple strings.
 
-=head1 MEMORY LEAK DETECTION
+# MEMORY LEAK DETECTION
 
 Most objects that this module emits emit a warning if their DESTROY()
 method runs at global-destruction time. This usually means either you
@@ -135,48 +114,33 @@ stored such an object in a global, or you have a memory leak. To silence
 the warning in the former case, just clear your global at END time.
 In the latter case, fix your code. :)
 
-=head1 SEE ALSO
+# SEE ALSO
 
 Other CPAN WebSocket implementations include:
 
-=over
+- [Net::WebSocket](https://metacpan.org/pod/Net::WebSocket)
+- [Mojolicious](https://metacpan.org/pod/Mojolicious)
+- [Net::Async::WebSocket](https://metacpan.org/pod/Net::Async::WebSocket) (No compression support)
+- [AnyEvent::WebSocket::Client](https://metacpan.org/pod/AnyEvent::WebSocket::Client)
+- [AnyEvent::WebSocket::Server](https://metacpan.org/pod/AnyEvent::WebSocket::Server)
+- [Protocol::WebSocket](https://metacpan.org/pod/Protocol::WebSocket)
 
-=item * L<Net::WebSocket>
-
-=item * L<Mojolicious>
-
-=item * L<Net::Async::WebSocket> (No compression support)
-
-=item * L<AnyEvent::WebSocket::Client>
-
-=item * L<AnyEvent::WebSocket::Server>
-
-=item * L<Protocol::WebSocket>
-
-=back
-
-=head1 CONSTANTS
+# CONSTANTS
 
 This package exposes the following constants. For their meanings
 see LWS’s documentation.
 
-=over
+- `HAS_PMD` - A boolean that indicates whether
+WebSocket compression (i.e., [per-message deflate](https://datatracker.ietf.org/doc/html/rfc7692#page-12), or `PMD`) is available.
+- Log levels: `LLL_ERR` et al. ([See here for the others.](https://libwebsockets.org/lws-api-doc-master/html/group__log.html))
+- TLS/SSL-related: `LCCSCF_ALLOW_SELFSIGNED`, `LCCSCF_SKIP_SERVER_CERT_HOSTNAME_CHECK`, `LCCSCF_ALLOW_EXPIRED`, `LCCSCF_ALLOW_INSECURE`
 
-=item * C<HAS_PMD> - A boolean that indicates whether
-WebSocket compression (i.e., L<per-message deflate|https://datatracker.ietf.org/doc/html/rfc7692#page-12>, or C<PMD>) is available.
-
-=item * Log levels: C<LLL_ERR> et al. (L<See here for the others.|https://libwebsockets.org/lws-api-doc-master/html/group__log.html>)
-
-=item * TLS/SSL-related: C<LCCSCF_ALLOW_SELFSIGNED>, C<LCCSCF_SKIP_SERVER_CERT_HOSTNAME_CHECK>, C<LCCSCF_ALLOW_EXPIRED>, C<LCCSCF_ALLOW_INSECURE>
-
-=back
-
-=head1 FUNCTIONS
+# FUNCTIONS
 
 Most of this distribution’s functionality lies in submodules; however,
 this package does expose some controls of its own:
 
-=head2 set_log_level( $LEVEL )
+## set\_log\_level( $LEVEL )
 
 Sets LWS’s global log level, which is the bitwise-OR of the log-level
 constants referenced above. For example, to see only errors and warnings
@@ -188,8 +152,12 @@ you can do:
 
 LWS allows setting a callback to direct log output to someplace other
 than STDERR. This library, though, does not (currently?) support that
-except via contextual logging (L<Net::Libwebsockets::Logger>).
+except via contextual logging ([Net::Libwebsockets::Logger](https://metacpan.org/pod/Net::Libwebsockets::Logger)).
 
-=cut
+# POD ERRORS
 
-1;
+Hey! **The above document had some coding errors, which are explained below:**
+
+- Around line 23:
+
+    Unterminated L<...> sequence

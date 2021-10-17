@@ -125,8 +125,17 @@ we drop the connection. Defaults to 4m59s.
 Returns a promise that completes once the WebSocket connection is done.
 If the connection shuts down successfully then the promise resolves
 with an array reference of C<[ $code, $reason ]>; otherwise the promise
-rejects with a L<Net::Libwebsockets::X::WebSocketClose> or
-L<Net::Libwebsockets::X::ConnectionFailed> instance.
+rejects with one of:
+
+=over
+
+=item * L<Net::Libwebsockets::X::WebSocketClose>
+
+=item * L<Net::Libwebsockets::X::ConnectionFailed>
+
+=item * L<Net::Libwebsockets::X::General>
+
+=back
 
 =cut
 
