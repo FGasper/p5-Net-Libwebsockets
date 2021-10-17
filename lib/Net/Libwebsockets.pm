@@ -20,7 +20,7 @@ Net::Libwebsockets - L<libwebsockets|https://libwebsockets.org> in Perl
 
 =head1 SYNOPSIS
 
-WebSocket with L<AnyEvent> (L<IO::Async is supported, too):
+WebSocket with L<AnyEvent> (L<IO::Async> is supported, too):
 
     my $cv = AE::cv();
 
