@@ -4,7 +4,7 @@ Net::Libwebsockets - [libwebsockets](https://libwebsockets.org) in Perl
 
 # SYNOPSIS
 
-WebSocket with [AnyEvent](https://metacpan.org/pod/AnyEvent) (["IO::Async is supported, too):"](#io-async-is-supported-too)
+WebSocket with [AnyEvent](https://metacpan.org/pod/AnyEvent) ([IO::Async](https://metacpan.org/pod/IO::Async) is supported, too):
 
     my $cv = AE::cv();
 
@@ -36,6 +36,9 @@ WebSocket with [AnyEvent](https://metacpan.org/pod/AnyEvent) (["IO::Async is sup
         },
     )->finally($cv);
 
+Look at [Net::Libwebsockets::WebSocket::Client](https://metacpan.org/pod/Net::Libwebsockets::WebSocket::Client) for documentation
+of the above.
+
 # DESCRIPTION
 
 This module provides a Perl binding to
@@ -48,8 +51,9 @@ protocols.
 # STATUS
 
 This module currently only implements WebSocket, and only as a client.
-It is **EXPERIMENTAL**, so all of its interfaces are subject to change,
-and it can blow up at you in any way at any time.
+(cf. [Net::Libwebsockets::WebSocket::Client](https://metacpan.org/pod/Net::Libwebsockets::WebSocket::Client))
+This is all **EXPERIMENTAL**, so all interfaces are subject to change,
+and any part of it can blow up in any way at any time.
 
 That said, it’s been in development for some time, and it should be
 useful enough to play with. Error reporting and memory-leak detection
@@ -108,7 +112,7 @@ to be simple strings.
 
 # MEMORY LEAK DETECTION
 
-Most objects that this module emits emit a warning if their DESTROY()
+Most objects here emit a warning if their DESTROY()
 method runs at global-destruction time. This usually means either you
 stored such an object in a global, or you have a memory leak. To silence
 the warning in the former case, just clear your global at END time.
@@ -118,12 +122,15 @@ In the latter case, fix your code. :)
 
 Other CPAN WebSocket implementations include:
 
-- [Net::WebSocket](https://metacpan.org/pod/Net::WebSocket)
-- [Mojolicious](https://metacpan.org/pod/Mojolicious)
-- [Net::Async::WebSocket](https://metacpan.org/pod/Net::Async::WebSocket) (No compression support)
-- [AnyEvent::WebSocket::Client](https://metacpan.org/pod/AnyEvent::WebSocket::Client)
-- [AnyEvent::WebSocket::Server](https://metacpan.org/pod/AnyEvent::WebSocket::Server)
-- [Protocol::WebSocket](https://metacpan.org/pod/Protocol::WebSocket)
+- [Net::WebSocket](https://metacpan.org/pod/Net::WebSocket) - Maximum flexibility.
+- [Mojolicious](https://metacpan.org/pod/Mojolicious) - Maximum simplicity.
+- [Net::WebSocket::Server](https://metacpan.org/pod/Net::WebSocket::Server) - Server implementation only.
+(No relation to [Net::WebSocket](https://metacpan.org/pod/Net::WebSocket)!)
+- [Net::Async::WebSocket](https://metacpan.org/pod/Net::Async::WebSocket) - WebSocket for [IO::Async](https://metacpan.org/pod/IO::Async)
+- [AnyEvent::WebSocket::Client](https://metacpan.org/pod/AnyEvent::WebSocket::Client) - [AnyEvent](https://metacpan.org/pod/AnyEvent) WS server
+- [AnyEvent::WebSocket::Server](https://metacpan.org/pod/AnyEvent::WebSocket::Server)  - [AnyEvent](https://metacpan.org/pod/AnyEvent) WS client
+- [Protocol::WebSocket](https://metacpan.org/pod/Protocol::WebSocket) - Early, bare-bones, used in some of the
+others.
 
 # CONSTANTS
 
@@ -137,8 +144,8 @@ WebSocket compression (i.e., [per-message deflate](https://datatracker.ietf.org/
 
 # FUNCTIONS
 
-Most of this distribution’s functionality lies in submodules; however,
-this package does expose some controls of its own:
+Most of this distribution’s controls lie in submodules; however,
+the present package does expose some functionality of its own:
 
 ## set\_log\_level( $LEVEL )
 
@@ -153,11 +160,3 @@ you can do:
 LWS allows setting a callback to direct log output to someplace other
 than STDERR. This library, though, does not (currently?) support that
 except via contextual logging ([Net::Libwebsockets::Logger](https://metacpan.org/pod/Net::Libwebsockets::Logger)).
-
-# POD ERRORS
-
-Hey! **The above document had some coding errors, which are explained below:**
-
-- Around line 23:
-
-    Unterminated L<...> sequence

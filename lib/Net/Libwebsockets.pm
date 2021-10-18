@@ -52,6 +52,9 @@ WebSocket with L<AnyEvent> (L<IO::Async> is supported, too):
         },
     )->finally($cv);
 
+Look at L<Net::Libwebsockets::WebSocket::Client> for documentation
+of the above.
+
 =head1 DESCRIPTION
 
 This module provides a Perl binding to
@@ -64,8 +67,9 @@ protocols.
 =head1 STATUS
 
 This module currently only implements WebSocket, and only as a client.
-It is B<EXPERIMENTAL>, so all of its interfaces are subject to change,
-and it can blow up at you in any way at any time.
+(cf. L<Net::Libwebsockets::WebSocket::Client>)
+This is all B<EXPERIMENTAL>, so all interfaces are subject to change,
+and any part of it can blow up in any way at any time.
 
 That said, it’s been in development for some time, and it should be
 useful enough to play with. Error reporting and memory-leak detection
@@ -129,7 +133,7 @@ to be simple strings.
 
 =head1 MEMORY LEAK DETECTION
 
-Most objects that this module emits emit a warning if their DESTROY()
+Most objects here emit a warning if their DESTROY()
 method runs at global-destruction time. This usually means either you
 stored such an object in a global, or you have a memory leak. To silence
 the warning in the former case, just clear your global at END time.
@@ -141,17 +145,21 @@ Other CPAN WebSocket implementations include:
 
 =over
 
-=item * L<Net::WebSocket>
+=item * L<Net::WebSocket> - Maximum flexibility.
 
-=item * L<Mojolicious>
+=item * L<Mojolicious> - Maximum simplicity.
 
-=item * L<Net::Async::WebSocket> (No compression support)
+=item * L<Net::WebSocket::Server> - Server implementation only.
+(No relation to L<Net::WebSocket>!)
 
-=item * L<AnyEvent::WebSocket::Client>
+=item * L<Net::Async::WebSocket> - WebSocket for L<IO::Async>
 
-=item * L<AnyEvent::WebSocket::Server>
+=item * L<AnyEvent::WebSocket::Client> - L<AnyEvent> WS server
 
-=item * L<Protocol::WebSocket>
+=item * L<AnyEvent::WebSocket::Server>  - L<AnyEvent> WS client
+
+=item * L<Protocol::WebSocket> - Early, bare-bones, used in some of the
+others.
 
 =back
 
@@ -173,8 +181,8 @@ WebSocket compression (i.e., L<per-message deflate|https://datatracker.ietf.org/
 
 =head1 FUNCTIONS
 
-Most of this distribution’s functionality lies in submodules; however,
-this package does expose some controls of its own:
+Most of this distribution’s controls lie in submodules; however,
+the present package does expose some functionality of its own:
 
 =head2 set_log_level( $LEVEL )
 
