@@ -13,7 +13,9 @@
 #include <libwebsockets.h>
 
 typedef struct {
+#if MULTIPLICITY
     pTHX;
+#endif
 
     SV* perlobj;    // Loop object
 

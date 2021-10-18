@@ -13,7 +13,9 @@
 #define LOGGER_CLASS "Net::Libwebsockets::Logger"
 
 typedef struct {
+#if MULTIPLICITY
     pTHX;
+#endif
 
     pid_t pid;
 
