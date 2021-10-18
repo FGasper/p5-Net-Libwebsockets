@@ -262,7 +262,7 @@ net_lws_wsclient_callback(
         } break;
 
     case LWS_CALLBACK_CLIENT_ESTABLISHED: {
-        courier_t* courier = nlws_create_courier(aTHX, wsi);
+        courier_t* courier = nlws_create_courier(aTHX_ wsi);
 
         my_perl_context->courier = courier;
 

@@ -1,6 +1,6 @@
-#include <string.h>
-
 #include "xshelper.h"
+
+#include <string.h>
 
 #define _CROAK_STRINGIFY_REFERENCE(sv) \
     croak("%" SVf " given where string expected!", sv)
