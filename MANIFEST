@@ -10,7 +10,9 @@ lib/Net/Libwebsockets.pm
 lib/Net/Libwebsockets/Logger.pm
 lib/Net/Libwebsockets/Loop.pm
 lib/Net/Libwebsockets/Loop/AnyEvent.pm
+lib/Net/Libwebsockets/Loop/FD.pm
 lib/Net/Libwebsockets/Loop/IOAsync.pm
+lib/Net/Libwebsockets/Loop/Mojo.pm
 lib/Net/Libwebsockets/WebSocket/Client.pm
 lib/Net/Libwebsockets/WebSocket/Courier.pm
 lib/Net/Libwebsockets/X.pm
@@ -29,6 +31,7 @@ nlws_logger.h
 nlws_perl_loop.c
 nlws_perl_loop.h
 ppport.h
+t/anyevent_nxdomain.t
 xshelper/README.md
 xshelper/xshelper.c
 xshelper/xshelper.h

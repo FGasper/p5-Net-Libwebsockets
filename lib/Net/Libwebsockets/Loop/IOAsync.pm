@@ -5,11 +5,10 @@ use warnings;
 
 use parent 'Net::Libwebsockets::Loop';
 
-use POSIX ();
-
 use feature 'current_sub';
 
 use Net::Libwebsockets ();
+use Net::Libwebsockets::Loop::FD ();
 
 use IO::Async::Handle ();
 
@@ -50,9 +49,7 @@ sub _create_set_timer_cr {
 sub add_fd {
     my ($self, $fd) = @_;
 
-    my $perl_fd = POSIX::dup($fd) or die "dup(FD $fd): $!";
-
-    open( my $fh, '+<&=', $perl_fd ) or die "open(FD $perl_fd): $!";
+    my $perl_fd = Net::Libwebsockets::Loop::FD::fd_to_fh($fd);
 
     my $ctx = $self->{'lws_context'};
 
