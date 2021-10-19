@@ -7,7 +7,9 @@ use ExtUtils::CChecker;
 use ExtUtils::PkgConfig;
 use ExtUtils::MakeMaker;
 
-my $extra_dir = $ENV{'LWS_BUILD_DIR'};
+my $BUILD_ENV_VAR = 'LWS_BUILD_DIR';
+
+my $extra_dir = $ENV{$BUILD_ENV_VAR};
 
 if ($extra_dir) {
     print "You say your LWS build is at $extra_dir …$/";
@@ -15,7 +17,7 @@ if ($extra_dir) {
 }
 else {
     print "In case you need it, you can define environment variable$/";
-    print "LWS_BUILD_DIR to give a specific path where your LWS lives.$/";
+    print "$BUILD_ENV_VAR to give a specific path where your LWS lives.$/";
 }
 
 print $/;
@@ -72,7 +74,7 @@ END
 
     $cc->assert_compile_run(
         source => $has_event_c,
-        diag => "Custom event loop support verification failed; is your Libwebsockets recent enough?",
+        diag => "Custom event loop support verification failed; is your Libwebsockets recent enough? (Or do you need a $BUILD_ENV_VAR env var?)",
     );
 }
 
