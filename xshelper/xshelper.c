@@ -1,3 +1,5 @@
+// With gcc: GNU-C99 is OK if string.h comes first, but plain C99 isn’t.
+
 #include "xshelper.h"
 
 #include <string.h>
