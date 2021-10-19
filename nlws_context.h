@@ -11,7 +11,7 @@ typedef enum {
 } message_type_t;
 
 typedef struct {
-#if MULTIPLICITY
+#ifdef MULTIPLICITY
     pTHX;
 #endif
 

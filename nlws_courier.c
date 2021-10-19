@@ -1,31 +1,6 @@
 #include "nlws_courier.h"
 #include "nlws_frame.h"
 
-static inline SV* _new_deferred_sv(pTHX) {
-    dSP;
-
-    ENTER;
-    SAVETMPS;
-
-    PUSHMARK(SP);
-
-    int count = call_pv("Promise::XS::deferred", G_SCALAR);
-
-    if (count != 1) croak("deferred() returned %d things?!?", count);
-
-    SPAGAIN;
-
-    SV* deferred_sv = POPs;
-    SvREFCNT_inc(deferred_sv);
-
-    FREETMPS;
-    LEAVE;
-
-    assert(SvREFCNT(deferred_sv) == 1);
-
-    return deferred_sv;
-}
-
 courier_t* nlws_create_courier (pTHX_ struct lws *wsi) {
     struct lws_ring *ring = lws_ring_create(
         sizeof(frame_t),

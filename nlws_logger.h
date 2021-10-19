@@ -13,7 +13,7 @@
 #define LOGGER_CLASS "Net::Libwebsockets::Logger"
 
 typedef struct {
-#if MULTIPLICITY
+#ifdef MULTIPLICITY
     pTHX;
 #endif
 

@@ -13,7 +13,7 @@
 #include <libwebsockets.h>
 
 typedef struct {
-#if MULTIPLICITY
+#ifdef MULTIPLICITY
     pTHX;
 #endif
 

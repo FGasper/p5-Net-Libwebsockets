@@ -643,7 +643,7 @@ _new (SV* hostname, int port, SV* path, SV* compression_sv, SV* subprotocols_sv,
         SvREFCNT_inc(done_d);
 
         struct lws_context *context = lws_create_context(&info);
-        if (1 || !context) {
+        if (!context) {
             if (extensions_p) Safefree(extensions_p);
 
             _finish_deferred_sv( aTHX_
