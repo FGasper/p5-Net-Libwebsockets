@@ -39,6 +39,7 @@ my $url = $ARGV[0] or die "Need URL!\n";
             },
         ),
         on_ready => sub ($ws) {
+            print STDERR ">> Connected!\n";
 
             # 1. Anything we receive from WS should go to STDOUT:
 
@@ -48,14 +49,14 @@ my $url = $ARGV[0] or die "Need URL!\n";
             );
 
             $ws->on_text(
-                sub ($msg) {
+                sub ($, $msg) {
                     utf8::encode($msg);
                     $out->push_write($msg);
                 },
             );
 
             $ws->on_binary(
-                sub ($msg) {
+                sub ($, $msg) {
                     $out->push_write($msg);
                 },
             );

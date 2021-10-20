@@ -26,7 +26,8 @@ and the WebSocket peer.
 =head2 I<OBJ>->on_text( \&CALLBACK )
 
 Registers a callback to fire on reception of every complete WebSocket
-text message. The callback receives the (character-decoded) message text.
+text message. The callback receives I<OBJ> and the (character-decoded)
+message text as arguments.
 
 =head2 I<OBJ>->on_binary( \&CALLBACK )
 

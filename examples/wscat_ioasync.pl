@@ -37,14 +37,14 @@ my $url = $ARGV[0] or die "Need URL!\n";
             $loop->add($out_stream);
 
             $ws->on_text(
-                sub ($msg) {
+                sub ($, $msg) {
                     utf8::encode($msg);
                     $out_stream->write($msg);
                 },
             );
 
             $ws->on_binary(
-                sub ($msg) {
+                sub ($, $msg) {
                     $out_stream->write($msg);
                 },
             );

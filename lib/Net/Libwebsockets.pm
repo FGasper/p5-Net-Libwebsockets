@@ -20,7 +20,8 @@ Net::Libwebsockets - L<libwebsockets|https://libwebsockets.org> in Perl
 
 =head1 SYNOPSIS
 
-WebSocket with L<AnyEvent> (L<IO::Async> is supported, too):
+WebSocket with L<AnyEvent>
+(L<IO::Async> and L<Mojolicious> are supported, too):
 
     my $cv = AE::cv();
 
@@ -107,7 +108,7 @@ release provides. It is thus recommended to build from that branch.
 =head1 EVENT LOOP SUPPORT
 
 This module supports most of Perl’s popular event loops via either
-L<IO::Async> or L<AnyEvent>.
+L<IO::Async>, L<Mojolicious>, or L<AnyEvent>.
 
 =head1 LOGGING
 
@@ -176,6 +177,32 @@ WebSocket compression (i.e., L<per-message deflate|https://datatracker.ietf.org/
 =item * Log levels: C<LLL_ERR> et al. (L<See here for the others.|https://libwebsockets.org/lws-api-doc-master/html/group__log.html>)
 
 =item * TLS/SSL-related: C<LCCSCF_ALLOW_SELFSIGNED>, C<LCCSCF_SKIP_SERVER_CERT_HOSTNAME_CHECK>, C<LCCSCF_ALLOW_EXPIRED>, C<LCCSCF_ALLOW_INSECURE>
+
+=item * WebSocket close codes:
+
+=over
+
+=item * C<CLOSE_STATUS_NORMAL>: 1000
+
+=item * C<CLOSE_STATUS_GOINGAWAY>: 1001
+
+=item * C<CLOSE_STATUS_PROTOCOL_ERR>: 1002
+
+=item * C<CLOSE_STATUS_UNACCEPTABLE_OPCODE>: 1003
+
+=item * C<CLOSE_STATUS_NO_STATUS>: 1005
+
+=item * C<CLOSE_STATUS_ABNORMAL_CLOSE>: 1006
+
+=item * C<CLOSE_STATUS_INVALID_PAYLOAD>: 1007
+
+=item * C<CLOSE_STATUS_POLICY_VIOLATION>: 1008
+
+=item * C<CLOSE_STATUS_MESSAGE_TOO_LARGE>: 1009
+
+=item * C<CLOSE_STATUS_EXTENSION_REQUIRED>: 1010
+
+=item * C<CLOSE_STATUS_UNEXPECTED_CONDITION>: 1011
 
 =back
 

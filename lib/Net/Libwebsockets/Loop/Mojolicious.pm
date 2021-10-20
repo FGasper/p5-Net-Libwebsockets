@@ -1,4 +1,4 @@
-package Net::Libwebsockets::Loop::Mojo;
+package Net::Libwebsockets::Loop::Mojolicious;
 
 use strict;
 use warnings;

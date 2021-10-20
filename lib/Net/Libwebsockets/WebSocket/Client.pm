@@ -32,6 +32,8 @@ Recognized values are:
 
 =item * C<AnyEvent> - to use L<AnyEvent>
 
+=item * C<Mojolicious> - to use L<Mojolicious>’s default/singleton reactor
+
 =item * A two-member arrayref of C<[ 'IOAsync', $loop ]> where C<$loop>
 is an L<IO::Async::Loop> instance.
 

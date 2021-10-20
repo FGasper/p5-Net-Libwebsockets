@@ -12,7 +12,7 @@ lib/Net/Libwebsockets/Loop.pm
 lib/Net/Libwebsockets/Loop/AnyEvent.pm
 lib/Net/Libwebsockets/Loop/FD.pm
 lib/Net/Libwebsockets/Loop/IOAsync.pm
-lib/Net/Libwebsockets/Loop/Mojo.pm
+lib/Net/Libwebsockets/Loop/Mojolicious.pm
 lib/Net/Libwebsockets/WebSocket/Client.pm
 lib/Net/Libwebsockets/WebSocket/Courier.pm
 lib/Net/Libwebsockets/X.pm
@@ -32,6 +32,9 @@ nlws_perl_loop.c
 nlws_perl_loop.h
 ppport.h
 t/anyevent_nxdomain.t
+t/mojo_nxdomain.t
+t/mojo_ping_pong__client_close.t
+t/mojo_ping_pong__server_close.t
 xshelper/README.md
 xshelper/xshelper.c
 xshelper/xshelper.h

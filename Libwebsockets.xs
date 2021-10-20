@@ -45,14 +45,15 @@
 #define _LWS_HAS_PMD 0
 #endif
 
-#define WS_CLOSE_IS_FAILURE(code) (code != LWS_CLOSE_STATUS_NOSTATUS && code != LWS_CLOSE_STATUS_NORMAL)
+#define WS_CLOSE_WAS_EMPTY(code) (code == LWS_CLOSE_STATUS_NOSTATUS || code == LWS_CLOSE_STATUS_NO_STATUS)
+#define WS_CLOSE_IS_FAILURE(code) (!WS_CLOSE_WAS_EMPTY(code) && code != LWS_CLOSE_STATUS_NORMAL)
 
 typedef struct {
     SV* courier_sv;
 } pause_t;
 
 static inline void _finish_deferred_sv (pTHX_ SV* loop_sv, SV** deferred_svp, const char* methname, SV* payload) {
-    if (DEBUG) warn("finishing deferred (payload=%p)\n", payload);
+    if (DEBUG) fprintf(stderr, "finishing deferred (payload=%p)\n", payload);
 
     if (!*deferred_svp) croak("Can’t %s(); already finished!", methname);
 
@@ -181,10 +182,11 @@ void _on_ws_message(pTHX_ my_perl_context_t* my_perl_context, SV* msgsv) {
             assert(0);
     }
 
-    SV* cbargs[] = { NULL, NULL };
+    SV* cbargs[] = { NULL, NULL, NULL };
 
     for (unsigned c=0; c<cbcount; c++) {
-        cbargs[0] = (c == cbcount-1) ? msgsv : newSVsv(msgsv);
+        cbargs[0] = newSVsv(my_perl_context->courier_sv);
+        cbargs[1] = (c == cbcount-1) ? msgsv : newSVsv(msgsv);
         xsh_call_sv_trap_void(cbs[c], cbargs, "Callback error: ");
     }
 }
@@ -316,7 +318,7 @@ net_lws_wsclient_callback(
 
         // Don’t close until we’ve flushed the buffer:
         else if (courier->close_requested) {
-            if (courier->close_status != LWS_CLOSE_STATUS_NOSTATUS) {
+            if (!WS_CLOSE_WAS_EMPTY(courier->close_status)) {
                 lws_close_reason(
                     wsi,
                     courier->close_status,
@@ -378,10 +380,16 @@ net_lws_wsclient_callback(
     case LWS_CALLBACK_WS_PEER_INITIATED_CLOSE: {
         courier_t* courier = my_perl_context->courier;
 
-        courier->close_status = ntohs( *(uint16_t *) in );
-        courier->close_reason_length = len - sizeof(uint16_t);
+        if (len >= sizeof(uint16_t)) {
+            courier->close_status = ntohs( *(uint16_t *) in );
+            courier->close_reason_length = len - sizeof(uint16_t);
 
-        memcpy(courier->close_reason, sizeof(uint16_t) + in, courier->close_reason_length);
+            memcpy(courier->close_reason, sizeof(uint16_t) + in, courier->close_reason_length);
+        }
+        else {
+            courier->close_status = LWS_CLOSE_STATUS_NO_STATUS;
+            courier->close_reason_length = 0;
+        }
 
         } break;
 
@@ -492,6 +500,9 @@ void _populate_extensions (pTHX_ struct lws_extension* extensions, AV* compressi
 #endif
 }
 
+#define _CLOSE_CODE_ENTRY(name) \
+    { LWS_CLOSE_STATUS_##name, "CLOSE_STATUS_" #name }
+
 /* ---------------------------------------------------------------------- */
 
 MODULE = Net::Libwebsockets     PACKAGE = Net::Libwebsockets
@@ -524,6 +535,38 @@ BOOT:
     newCONSTSUB(gv_stashpv("Net::Libwebsockets", FALSE), "LLL_LATENCY", newSVuv(LLL_LATENCY));
     newCONSTSUB(gv_stashpv("Net::Libwebsockets", FALSE), "LLL_USER", newSVuv(LLL_USER));
     newCONSTSUB(gv_stashpv("Net::Libwebsockets", FALSE), "LLL_THREAD", newSVuv(LLL_THREAD));
+
+    // ----------------------------------------------------------------------
+    // WebSocket close codes:
+
+    typedef struct {
+        UV uv;
+        const char* name;
+    } _nlws_constant;
+
+    _nlws_constant _CONSTANTS[] = {
+        _CLOSE_CODE_ENTRY(NORMAL),
+        _CLOSE_CODE_ENTRY(GOINGAWAY),
+        _CLOSE_CODE_ENTRY(PROTOCOL_ERR),
+        _CLOSE_CODE_ENTRY(UNACCEPTABLE_OPCODE),
+        _CLOSE_CODE_ENTRY(NO_STATUS),
+        _CLOSE_CODE_ENTRY(ABNORMAL_CLOSE),
+        _CLOSE_CODE_ENTRY(INVALID_PAYLOAD),
+        _CLOSE_CODE_ENTRY(POLICY_VIOLATION),
+        _CLOSE_CODE_ENTRY(MESSAGE_TOO_LARGE),
+        _CLOSE_CODE_ENTRY(EXTENSION_REQUIRED),
+        _CLOSE_CODE_ENTRY(UNEXPECTED_CONDITION),
+    };
+
+    const unsigned consts_count = sizeof(_CONSTANTS) / sizeof(_nlws_constant);
+
+    for (unsigned c = 0; c < consts_count; c++) {
+        newCONSTSUB(
+            gv_stashpv("Net::Libwebsockets", FALSE),
+            _CONSTANTS[c].name,
+            newSVuv( _CONSTANTS[c].uv )
+        );
+    }
 
     // ----------------------------------------------------------------------
     // Privates:
@@ -811,7 +854,7 @@ pause (SV* self_sv)
         RETVAL
 
 void
-close (SV* self_sv, U16 code=LWS_CLOSE_STATUS_NOSTATUS, SV* reason_sv=NULL)
+close (SV* self_sv, U16 code=LWS_CLOSE_STATUS_NO_STATUS, SV* reason_sv=NULL)
     CODE:
         courier_t* courier = xsh_svrv_to_ptr(self_sv);
 
