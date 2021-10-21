@@ -41,6 +41,9 @@ my @pc_cflags = split m< >, ExtUtils::PkgConfig->cflags($PKG);
 
 my @libs = split m< >, ExtUtils::PkgConfig->libs($PKG);
 
+print "cflags: @pc_cflags\n";
+print "libs: @libs\n";
+
 my @pc_lddlflags = map { $_ ? (split m< >) : () } (
     ExtUtils::PkgConfig->libs_only_L($PKG),
     ExtUtils::PkgConfig->libs_only_other($PKG),
