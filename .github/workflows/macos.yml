@@ -22,12 +22,12 @@ jobs:
 
     steps:
       - uses: actions/checkout@v2
-      - name: Set up Perl & other brews
-        # Need openssl to have the dev headers:
-        run: brew install perl libwebsockets pkg-config
-      - run: brew reinstall openssl@1.1
-      - run: brew ls --verbose openssl@1.1
-      - run: pkg-config --list-all
+      - name: Set up Perl & LWS
+        run: brew install perl libwebsockets
+      - run: which pkg-config
+      - run: PKG_CONFIG_PATH=`find /usr/local/Cellar/openssl@1.1 -name pkgconfig` pkg-config --list-all | sort
+      - run: export FOO=bar
+      - run: "echo $FOO"
       - name: perl -V
         run: perl -V
       - name: Install AnyEvent (optional)
@@ -38,9 +38,9 @@ jobs:
         run: "curl -L https://cpanmin.us | perl - --notest Mojolicious ||:"
       - name: Install Configure Requires
         run: curl -L https://cpanmin.us | perl - --notest ExtUtils::CChecker ExtUtils::PkgConfig
-      - name: Install Dependencies
-        run: curl -L https://cpanmin.us | perl - --notest --installdeps . || cat `find ~ -name build.log`
       - run: find /usr/local/Cellar/openssl@1.1 -name pkgconfig
+      - name: Install Dependencies
+        run: curl -L https://cpanmin.us | PKG_CONFIG_PATH=`find /usr/local/Cellar/openssl@1.1 -name pkgconfig` perl - --notest --installdeps . || cat `find ~ -name build.log`
       - name: perl Makefile.PL
         run: PKG_CONFIG_PATH=`find /usr/local/Cellar/openssl@1.1 -name pkgconfig` perl Makefile.PL
       - name: make
