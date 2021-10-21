@@ -25,7 +25,7 @@ jobs:
       - name: Set up Perl & LWS
         # Need openssl to have the dev headers:
         run: brew install perl libwebsockets
-      - run: port install openssl
+      #- run: port install openssl
       - name: perl -V
         run: perl -V
       - name: Install AnyEvent (optional)

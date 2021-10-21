@@ -158,6 +158,10 @@ WriteMakefile(
         },
     },
 
+    # Loops use __SUB__. May be possible to avoid if compat with older
+    # perls is desirable.
+    MIN_PERL_VERSION => '5.16.0',
+
     PREREQ_PM => {
         'Promise::XS' => 0,
         'URI::Split' => 0,
