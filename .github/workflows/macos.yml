@@ -22,9 +22,10 @@ jobs:
 
     steps:
       - uses: actions/checkout@v2
-      - name: Set up Perl
+      - name: Set up Perl & LWS
         # Need openssl to have the dev headers:
-        run: brew install perl libwebsockets openssl@1.1
+        run: brew install perl libwebsockets
+      - run: port install openssl
       - name: perl -V
         run: perl -V
       - name: Install AnyEvent (optional)
