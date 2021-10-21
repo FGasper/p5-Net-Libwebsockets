@@ -26,6 +26,7 @@ jobs:
         # Need openssl to have the dev headers:
         run: brew install perl libwebsockets
       - run: brew reinstall openssl@1.1
+      - run: brew ls --verbose openssl@1.1
       - name: perl -V
         run: perl -V
       - name: Install AnyEvent (optional)
