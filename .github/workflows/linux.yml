@@ -62,10 +62,10 @@ jobs:
       - name: Install Mojolicious (optional)
         run: "cpanm --notest Mojolicious ||:"
       - run: pwd
+      - name: Install Configure Requires
+        run: cpanm ExtUtils::CChecker ExtUtils::PkgConfig
       - name: Install Dependencies
-        run: "cpanm --notest --installdeps . ||:"
-      - run: find /github/home/.cpanm -name build.log
-      - run: "cat `find /github/home/.cpanm -name build.log`;false"
+        run: cpanm --notest --installdeps .
       - name: perl Makefile.PL
         run: perl Makefile.PL
       - name: make
