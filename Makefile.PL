@@ -165,4 +165,6 @@ WriteMakefile(
         'Test::Deep' => 0,
         'Test::FailWarnings' => 0,
     },
+
+    NOECHO => q<>,
 );
