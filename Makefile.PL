@@ -161,6 +161,7 @@ WriteMakefile(
     PREREQ_PM => {
         'Promise::XS' => 0,
         'URI::Split' => 0,
+        'X::Tiny' => 0,
     },
 
     TEST_REQUIRES => {
