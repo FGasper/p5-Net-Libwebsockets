@@ -71,7 +71,7 @@ jobs:
       - name: Install Dependencies
         run: "cpanm --notest --installdeps . ||:"
       - run: find /github/home/.cpanm -name build.log
-      - run: "for f in `find /github/home/.cpanm -name build.log`; do echo ================== $f; cat $f; done; false"
+      - run: "for f in `find /github/home/.cpanm -name build.log`; do echo ================== $f; cat $f; done"
       - name: perl Makefile.PL
         run: perl Makefile.PL
       - name: make
