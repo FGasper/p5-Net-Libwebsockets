@@ -62,7 +62,7 @@ jobs:
       - name: Install Mojolicious (optional)
         run: "cpanm --notest Mojolicious ||:"
       - name: Install Dependencies
-        run: cpanm --notest --installdeps .
+        run: cpanm --notest --installdeps . || cat `find . -name build.log` && false
       - name: perl Makefile.PL
         run: perl Makefile.PL
       - name: make
