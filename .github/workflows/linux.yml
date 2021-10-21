@@ -61,9 +61,10 @@ jobs:
         run: "cpanm --notest IO::Async ||:"
       - name: Install Mojolicious (optional)
         run: "cpanm --notest Mojolicious ||:"
+      - run: pwd
       - name: Install Dependencies
         run: "cpanm --notest --installdeps . ||:"
-      - run: find . -name build.log
+      - run: find /github/home/.cpanm -name build.log
       - run: "cat `find . -name build.log`;false"
       - name: perl Makefile.PL
         run: perl Makefile.PL
