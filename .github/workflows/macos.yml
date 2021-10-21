@@ -35,7 +35,7 @@ jobs:
       - name: Install Configure Requires
         run: curl -L https://cpanmin.us | perl - --notest ExtUtils::CChecker ExtUtils::PkgConfig
       - name: Install Dependencies
-        run: curl -L https://cpanmin.us | perl - --notest --installdeps .
+        run: curl -L https://cpanmin.us | perl - --notest --installdeps . || cat `find ~ -name build.log`
       - name: perl Makefile.PL
         run: perl Makefile.PL
       - name: make
