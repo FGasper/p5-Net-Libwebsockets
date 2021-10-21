@@ -40,8 +40,9 @@ jobs:
         run: curl -L https://cpanmin.us | perl - --notest ExtUtils::CChecker ExtUtils::PkgConfig
       - name: Install Dependencies
         run: curl -L https://cpanmin.us | perl - --notest --installdeps . || cat `find ~ -name build.log`
+      - run: find /usr/local/Cellar/openssl@1.1 -name pkgconfig
       - name: perl Makefile.PL
-        run: perl Makefile.PL
+        run: PKG_CONFIG_DIR=`find /usr/local/Cellar/openssl@1.1 -name pkgconfig` perl Makefile.PL
       - name: make
         run: make
       - name: Run tests (with coverage)
