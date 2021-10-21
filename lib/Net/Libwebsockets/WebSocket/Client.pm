@@ -3,6 +3,24 @@ package Net::Libwebsockets::WebSocket::Client;
 use strict;
 use warnings;
 
+=encoding utf-8
+
+=head1 NAME
+
+Net::Libwebsockets::WebSocket::Client
+
+=head1 SYNOPSIS
+
+See L<Net::Libwebsockets>.
+
+=head1 DESCRIPTION
+
+Use this module to run a WebSocket connection.
+
+=cut
+
+#----------------------------------------------------------------------
+
 use Carp       ();
 use URI::Split ();
 
@@ -125,7 +143,8 @@ we drop the connection. Defaults to 4m59s.
 =head3 Return Value
 
 Returns a promise that completes once the WebSocket connection is done.
-If the connection shuts down successfully then the promise resolves
+If the connection shuts down successfully (either via an explicit
+success close code or no close code) then the promise resolves
 with an array reference of C<[ $code, $reason ]>; otherwise the promise
 rejects with one of:
 
@@ -134,6 +153,8 @@ rejects with one of:
 =item * L<Net::Libwebsockets::X::WebSocketClose>
 
 =item * L<Net::Libwebsockets::X::ConnectionFailed>
+
+(NB: This exception is thrown in lieu of WebSocket close code 1006.)
 
 =item * L<Net::Libwebsockets::X::General>
 

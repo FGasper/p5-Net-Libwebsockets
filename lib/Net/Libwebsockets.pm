@@ -73,7 +73,8 @@ This is all B<EXPERIMENTAL>, so all interfaces are subject to change,
 and any part of it can blow up in any way at any time.
 
 That said, it’s been in development for some time, and it should be
-useful enough to play with. Error reporting and memory-leak detection
+useful enough to play with. L<Error reporting|/ERRORS> and
+L<memory-leak detection|/MEMORY LEAK DETECTION>
 have received especial care. LWS itself is used on tens of millions
 of devices, so any issues you encounter will likely be solvable readily
 by fixing this little module rather than delving into LWS.
@@ -87,6 +88,9 @@ Note the following:
 
 =item * Some LWS builds lack useful stuff like WebSocket compression
 or non-blocking DNS queries. If in doubt, check your build.
+
+=item * There’s currently no maximum WebSocket message size.
+(That’s less of a concern for clients than it is for servers, of course.)
 
 =back
 
@@ -128,17 +132,20 @@ details.
 
 =head1 ERRORS
 
-Most of this module’s error classes extend L<X::Tiny::Base>. Errors that
-are more likely to be programmer misuse than runtime failure are more apt
+Most of this module’s errors are instances of
+L<Net::Libwebsockets::X::Base>, which extends L<X::Tiny::Base>. Errors that
+more likely indicate programmer misuse than runtime failure are more apt
 to be simple strings.
 
 =head1 MEMORY LEAK DETECTION
 
-Most objects here emit a warning if their DESTROY()
-method runs at global-destruction time. This usually means either you
-stored such an object in a global, or you have a memory leak. To silence
-the warning in the former case, just clear your global at END time.
-In the latter case, fix your code. :)
+C<DESTROY()> at global destruction usually means either you stored the
+DESTROYed object in a global, or you have a memory leak. To silence the
+warning in the former case, just clear your global at END time. In the
+latter case, though, you have to fix the memory leak.
+
+As an aid in identifying these cases, most objects here emit a warning if
+their C<DESTROY()> method runs at global-destruction time.
 
 =head1 SEE ALSO
 
