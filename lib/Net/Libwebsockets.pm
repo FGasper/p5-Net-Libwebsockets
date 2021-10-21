@@ -147,30 +147,6 @@ latter case, though, you have to fix the memory leak.
 As an aid in identifying these cases, most objects here emit a warning if
 their C<DESTROY()> method runs at global-destruction time.
 
-=head1 SEE ALSO
-
-Other CPAN WebSocket implementations include:
-
-=over
-
-=item * L<Net::WebSocket> - Maximum flexibility.
-
-=item * L<Mojolicious> - Maximum simplicity.
-
-=item * L<Net::WebSocket::Server> - Server implementation only.
-(No relation to L<Net::WebSocket>!)
-
-=item * L<Net::Async::WebSocket> - WebSocket for L<IO::Async>
-
-=item * L<AnyEvent::WebSocket::Client> - L<AnyEvent> WS server
-
-=item * L<AnyEvent::WebSocket::Server>  - L<AnyEvent> WS client
-
-=item * L<Protocol::WebSocket> - Early, bare-bones, used in some of the
-others.
-
-=back
-
 =head1 CONSTANTS
 
 This package exposes the following constants. For their meanings
@@ -213,6 +189,8 @@ WebSocket compression (i.e., L<per-message deflate|https://datatracker.ietf.org/
 
 =back
 
+=back
+
 =head1 FUNCTIONS
 
 Most of this distribution’s controls lie in submodules; however,
@@ -231,6 +209,30 @@ you can do:
 LWS allows setting a callback to direct log output to someplace other
 than STDERR. This library, though, does not (currently?) support that
 except via contextual logging (L<Net::Libwebsockets::Logger>).
+
+=head1 SEE ALSO
+
+Other CPAN WebSocket implementations include:
+
+=over
+
+=item * L<Net::WebSocket> - Maximum flexibility.
+
+=item * L<Mojolicious> - Maximum simplicity.
+
+=item * L<Net::WebSocket::Server> - Server implementation only.
+(No relation to L<Net::WebSocket>!)
+
+=item * L<Net::Async::WebSocket> - WebSocket for L<IO::Async>
+
+=item * L<AnyEvent::WebSocket::Client> - L<AnyEvent> WS server
+
+=item * L<AnyEvent::WebSocket::Server>  - L<AnyEvent> WS client
+
+=item * L<Protocol::WebSocket> - Early, bare-bones, used in some of the
+others.
+
+=back
 
 =cut
 

@@ -1,3 +1,5 @@
+.github/workflows/linux.yml
+.github/workflows/macos.yml
 .gitignore
 Changes
 Libwebsockets.xs

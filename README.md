@@ -125,20 +125,6 @@ latter case, though, you have to fix the memory leak.
 As an aid in identifying these cases, most objects here emit a warning if
 their `DESTROY()` method runs at global-destruction time.
 
-# SEE ALSO
-
-Other CPAN WebSocket implementations include:
-
-- [Net::WebSocket](https://metacpan.org/pod/Net%3A%3AWebSocket) - Maximum flexibility.
-- [Mojolicious](https://metacpan.org/pod/Mojolicious) - Maximum simplicity.
-- [Net::WebSocket::Server](https://metacpan.org/pod/Net%3A%3AWebSocket%3A%3AServer) - Server implementation only.
-(No relation to [Net::WebSocket](https://metacpan.org/pod/Net%3A%3AWebSocket)!)
-- [Net::Async::WebSocket](https://metacpan.org/pod/Net%3A%3AAsync%3A%3AWebSocket) - WebSocket for [IO::Async](https://metacpan.org/pod/IO%3A%3AAsync)
-- [AnyEvent::WebSocket::Client](https://metacpan.org/pod/AnyEvent%3A%3AWebSocket%3A%3AClient) - [AnyEvent](https://metacpan.org/pod/AnyEvent) WS server
-- [AnyEvent::WebSocket::Server](https://metacpan.org/pod/AnyEvent%3A%3AWebSocket%3A%3AServer)  - [AnyEvent](https://metacpan.org/pod/AnyEvent) WS client
-- [Protocol::WebSocket](https://metacpan.org/pod/Protocol%3A%3AWebSocket) - Early, bare-bones, used in some of the
-others.
-
 # CONSTANTS
 
 This package exposes the following constants. For their meanings
@@ -180,10 +166,16 @@ LWS allows setting a callback to direct log output to someplace other
 than STDERR. This library, though, does not (currently?) support that
 except via contextual logging ([Net::Libwebsockets::Logger](https://metacpan.org/pod/Net%3A%3ALibwebsockets%3A%3ALogger)).
 
-# POD ERRORS
+# SEE ALSO
 
-Hey! **The above document had some coding errors, which are explained below:**
+Other CPAN WebSocket implementations include:
 
-- Around line 216:
-
-    You forgot a '=back' before '=head1'
+- [Net::WebSocket](https://metacpan.org/pod/Net%3A%3AWebSocket) - Maximum flexibility.
+- [Mojolicious](https://metacpan.org/pod/Mojolicious) - Maximum simplicity.
+- [Net::WebSocket::Server](https://metacpan.org/pod/Net%3A%3AWebSocket%3A%3AServer) - Server implementation only.
+(No relation to [Net::WebSocket](https://metacpan.org/pod/Net%3A%3AWebSocket)!)
+- [Net::Async::WebSocket](https://metacpan.org/pod/Net%3A%3AAsync%3A%3AWebSocket) - WebSocket for [IO::Async](https://metacpan.org/pod/IO%3A%3AAsync)
+- [AnyEvent::WebSocket::Client](https://metacpan.org/pod/AnyEvent%3A%3AWebSocket%3A%3AClient) - [AnyEvent](https://metacpan.org/pod/AnyEvent) WS server
+- [AnyEvent::WebSocket::Server](https://metacpan.org/pod/AnyEvent%3A%3AWebSocket%3A%3AServer)  - [AnyEvent](https://metacpan.org/pod/AnyEvent) WS client
+- [Protocol::WebSocket](https://metacpan.org/pod/Protocol%3A%3AWebSocket) - Early, bare-bones, used in some of the
+others.
