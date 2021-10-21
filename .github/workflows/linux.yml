@@ -65,7 +65,7 @@ jobs:
       - name: Install Dependencies
         run: "cpanm --notest --installdeps . ||:"
       - run: find /github/home/.cpanm -name build.log
-      - run: "cat `find . -name build.log`;false"
+      - run: "cat `find /github/home/.cpanm -name build.log`;false"
       - name: perl Makefile.PL
         run: perl Makefile.PL
       - name: make
