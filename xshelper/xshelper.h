@@ -6,6 +6,8 @@
 #include "perl.h"
 #include "XSUB.h"
 
+#include <stdbool.h>
+
 /*
     Calls $object->$methname(@args) in void context. (args may be NULL.)
 
