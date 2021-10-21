@@ -45,6 +45,8 @@
 #define _LWS_HAS_PMD 0
 #endif
 
+#define my_av_top_index(av) av_len(av)
+
 #define WS_CLOSE_WAS_EMPTY(code) (code == LWS_CLOSE_STATUS_NOSTATUS || code == LWS_CLOSE_STATUS_NO_STATUS)
 #define WS_CLOSE_IS_FAILURE(code) (!WS_CLOSE_WAS_EMPTY(code) && code != LWS_CLOSE_STATUS_NORMAL)
 
@@ -229,7 +231,7 @@ net_lws_wsclient_callback(
 
         AV* headers_av = (AV*) SvRV(my_perl_context->headers_ar);
 
-        int headers_len = 1 + av_top_index(headers_av);
+        int headers_len = 1 + my_av_top_index(headers_av);
 
         STRLEN valuelen;
         SV** key;
@@ -465,7 +467,7 @@ const struct lws_protocols wsclient_protocols[] = {
 
 void _populate_extensions (pTHX_ struct lws_extension* extensions, AV* compressions_av) {
 #if _LWS_HAS_PMD
-    SSize_t compressions_len = 1 + av_top_index(compressions_av);
+    SSize_t compressions_len = 1 + my_av_top_index(compressions_av);
 
     for (SSize_t c=0; c<compressions_len; c++) {
         SV** cur_p = av_fetch(compressions_av, c, FALSE);
@@ -630,7 +632,7 @@ _new (SV* hostname, int port, SV* path, SV* compression_sv, SV* subprotocols_sv,
         assert(SVt_PVAV == SvTYPE(SvRV(compression_sv)));
 
         AV* compressions_av = (AV*) SvRV(compression_sv);
-        SSize_t compressions_len = 1 + av_top_index(compressions_av);
+        SSize_t compressions_len = 1 + my_av_top_index(compressions_av);
 
         struct lws_extension* extensions_p;
 
