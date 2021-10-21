@@ -46,7 +46,7 @@ jobs:
       - name: perl -V
         run: perl -V
       - name: Install cmake
-        run: apt install cmake
+        run: apt --assume-yes install cmake
       - name: Download & install LWS
         run: |
             git clone https://libwebsockets.org/repo/libwebsockets
