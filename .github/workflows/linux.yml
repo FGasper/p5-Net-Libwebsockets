@@ -50,6 +50,7 @@ jobs:
         run: apt --assume-yes install cmake
       - name: Download & install LWS
         run: |
+            cd 
             git clone https://libwebsockets.org/repo/libwebsockets
             cd libwebsockets
             mkdir build
@@ -57,6 +58,7 @@ jobs:
             cmake ..
             make install
             cd ../..
+            rm -rf libwebsockets
       - name: Install AnyEvent (optional)
         run: "cpanm --notest AnyEvent ||:"
       - name: Install IO::Async (optional)
