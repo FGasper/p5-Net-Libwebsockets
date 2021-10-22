@@ -47,7 +47,7 @@ jobs:
 #      - name: Install Mojolicious (optional)
 #        run: "curl -L https://cpanmin.us | perl - --notest Mojolicious ||:"
       - name: Install Configure Requires
-        run: curl -L https://cpanmin.us | perl - --notest ExtUtils::CChecker ExtUtils::PkgConfig
+        run: curl -L https://cpanmin.us | perl - --notest ExtUtils::CChecker ExtUtils::PkgConfig ExtUtils::MakeMaker
       #- run: find /usr/local/Cellar/openssl@1.1 -name pkgconfig
 #      - run: cat .pkg-config-path
 #      - run: export PKG_CONFIG_PATH=`cat .pkg-config-path`; echo $PKG_CONFIG_PATH
@@ -64,7 +64,7 @@ jobs:
         #run: export PERL_MM_OPT="`cat .perl_mm_opt`"; export LDFLAGS="-L/usr/local/opt/openssl@1.1/lib"; export CPPFLAGS="-I/usr/local/opt/openssl@1.1/include"; export CCFLAGS="-I/usr/local/opt/openssl@1.1/include"; export CFLAGS="-I/usr/local/opt/openssl@1.1/include"; perl Makefile.PL
         run: export PERL_MM_OPT="`cat .perl_mm_opt`"; export LDFLAGS="-L/usr/local/opt/openssl@1.1/lib"; export CFLAGS="-I/usr/local/opt/openssl@1.1/include"; perl Makefile.PL
       - name: make
-        run: make
+        run: 'make || ls -laR && false'
       - name: Run tests (with coverage)
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
