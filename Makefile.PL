@@ -125,11 +125,11 @@ WriteMakefile(
     DEFINE            => $lws_has_deflate ? '-DNLWS_LWS_HAS_PMD' : '',
     LICENSE           => "perl_5",
 
-    INC => "-Wall -I. --std=c99 @cflags",
+    INC => "-Wall -I. --std=c99 @cflags $Config{'ccflags'} -o \$@",
 
     # An awful hack to accommodate the fact that otherwise
     # the created Makefile expects xshelper.o to be in the base dir:
-    CCFLAGS => "$Config{'ccflags'} @env_cflags -o \$@",
+    #CCFLAGS => "$Config{'ccflags'} -o \$@",
 
     LDDLFLAGS => "@extra_lddlflags $Config{'lddlflags'}",
 
