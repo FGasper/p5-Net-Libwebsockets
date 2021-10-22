@@ -38,10 +38,14 @@ jobs:
       - name: Install Configure Requires
         run: curl -L https://cpanmin.us | perl - --notest ExtUtils::CChecker ExtUtils::PkgConfig
       #- run: find /usr/local/Cellar/openssl@1.1 -name pkgconfig
-      - run: "echo CCFLAGS=\'`pkg-config openssl --cflags`\' LIBS=\'`pkg-config openssl --libs`\' > .perl_mm_opt"
+      - run: "echo CCFLAGS=\\'`pkg-config openssl --cflags`\\' LIBS=\\'`pkg-config openssl --libs`\\'"
+      - run: "echo CCFLAGS=\\'`pkg-config openssl --cflags`\\' LIBS=\\'`pkg-config openssl --libs`\\' > .perl_mm_opt"
+      - run: cat .perl_mm_opt
       - name: Install Dependencies
         #run: curl -L https://cpanmin.us | PKG_CONFIG_PATH=`find /usr/local/Cellar/openssl@1.1 -name pkgconfig` perl - --notest --installdeps . || cat `find ~ -name build.log`
-        run: curl -L https://cpanmin.us | PERL_MM_OPT="`cat .perl_mm_opt`" perl - --notest --installdeps .
+        #run: curl -L https://cpanmin.us | PERL_MM_OPT="`cat .perl_mm_opt`" perl - --notest --installdeps .
+        run: curl -L https://cpanmin.us | perl - --notest Promise::XS URI::Split X::Tiny
+      - run: 'PERL_MM_OPT="`cat .perl_mm_opt`" echo $PERL_MM_OPT'
       - name: perl Makefile.PL
         run: PERL_MM_OPT="`cat .perl_mm_opt`" perl Makefile.PL
       - name: make
