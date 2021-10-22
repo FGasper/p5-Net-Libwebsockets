@@ -26,7 +26,7 @@ jobs:
         run: brew install perl libwebsockets
 #      - name: Build custom openssl
 #        run: |
-#            wget https://www.openssl.org/source/openssl-1.1.1l.tar.gz
+#            curl https://www.openssl.org/source/openssl-1.1.1l.tar.gz | tar -xzf -
 #            cd openssl-1.1.1l
 #            ./Configure
 #            make install
@@ -61,7 +61,7 @@ jobs:
         run: curl -L https://cpanmin.us | perl - --notest Promise::XS URI::Split X::Tiny
       - run: 'PERL_MM_OPT="`cat .perl_mm_opt`"; echo $PERL_MM_OPT'
       - name: perl Makefile.PL
-        run: export PERL_MM_OPT="`cat .perl_mm_opt`"; export export LDFLAGS="-L/usr/local/opt/openssl@1.1/lib"; export export CPPFLAGS="-I/usr/local/opt/openssl@1.1/include"; perl Makefile.PL
+        run: export PERL_MM_OPT="`cat .perl_mm_opt`"; export LDFLAGS="-L/usr/local/opt/openssl@1.1/lib"; export CPPFLAGS="-I/usr/local/opt/openssl@1.1/include"; export CCFLAGS="-I/usr/local/opt/openssl@1.1/include"; export CFLAGS="-I/usr/local/opt/openssl@1.1/include"; perl Makefile.PL
       - name: make
         run: make
       - name: Run tests (with coverage)
