@@ -62,7 +62,7 @@ jobs:
       - run: 'PERL_MM_OPT="`cat .perl_mm_opt`"; echo $PERL_MM_OPT'
       - name: perl Makefile.PL
         #run: export PERL_MM_OPT="`cat .perl_mm_opt`"; export LDFLAGS="-L/usr/local/opt/openssl@1.1/lib"; export CPPFLAGS="-I/usr/local/opt/openssl@1.1/include"; export CCFLAGS="-I/usr/local/opt/openssl@1.1/include"; export CFLAGS="-I/usr/local/opt/openssl@1.1/include"; perl Makefile.PL
-        run: export PERL_MM_OPT="`cat .perl_mm_opt`"; export LDFLAGS="-L/usr/local/opt/openssl@1.1/lib"; export CPPFLAGS="-I/usr/local/opt/openssl@1.1/include"; perl Makefile.PL
+        run: export PERL_MM_OPT="`cat .perl_mm_opt`"; export LDFLAGS="-L/usr/local/opt/openssl@1.1/lib"; export CFLAGS="-I/usr/local/opt/openssl@1.1/include"; perl Makefile.PL
       - name: make
         run: make
       - name: Run tests (with coverage)
