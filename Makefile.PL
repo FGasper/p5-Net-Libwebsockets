@@ -106,6 +106,12 @@ END
     $lws_has_deflate;
 };
 
+my %env_copy = %ENV;
+
+local @ENV{'CFLAGS', 'CCFLAGS'};
+
+my @env_cflags = grep { $_ } @env_copy{'CFLAGS', 'CCFLAGS'};
+
 # See lib/ExtUtils/MakeMaker.pm for details of how to influence
 # the contents of the Makefile that is written.
 WriteMakefile(
@@ -123,7 +129,7 @@ WriteMakefile(
 
     # An awful hack to accommodate the fact that otherwise
     # the created Makefile expects xshelper.o to be in the base dir:
-    CCFLAGS => "$Config{'ccflags'} -o \$@",
+    CCFLAGS => "$Config{'ccflags'} @env_cflags -o \$@",
 
     LDDLFLAGS => "@extra_lddlflags $Config{'lddlflags'}",
 
