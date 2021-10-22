@@ -27,6 +27,7 @@ jobs:
       #- run: which pkg-config
       #- run: PKG_CONFIG_PATH=`find /usr/local/Cellar/openssl@1.1 -name pkgconfig` pkg-config --list-all | sort
       - run: find /usr/local/Cellar/openssl@1.1 -name pkgconfig > .pkg-config-path
+      - run: cat .pkg-config-path
       - run: PKG_CONFIG_PATH=`cat .pkg-config-path` pkg-config --list-all | grep ssl
       - name: perl -V
         run: perl -V
@@ -39,6 +40,7 @@ jobs:
       - name: Install Configure Requires
         run: curl -L https://cpanmin.us | perl - --notest ExtUtils::CChecker ExtUtils::PkgConfig
       #- run: find /usr/local/Cellar/openssl@1.1 -name pkgconfig
+      - run: cat .pkg-config-path
       - run: PKG_CONFIG_PATH=`cat .pkg-config-path` echo $PKG_CONFIG_PATH
       - run: "PKG_CONFIG_PATH=`cat .pkg-config-path` echo CCFLAGS=\\'`pkg-config openssl --cflags`\\' LIBS=\\'`pkg-config openssl --libs`\\'"
       - run: "PKG_CONFIG_PATH=`cat .pkg-config-path` echo CCFLAGS=\\'`pkg-config openssl --cflags`\\' LIBS=\\'`pkg-config openssl --libs`\\' > .perl_mm_opt"
