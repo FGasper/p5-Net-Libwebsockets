@@ -23,8 +23,14 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - name: Set up Perl & LWS
-        run: brew install perl libwebsockets openssl@3
-      - run: brew link openssl@3
+        run: brew install perl libwebsockets
+      - name: Build custom openssl
+        run: |
+            wget https://www.openssl.org/source/openssl-1.1.1l.tar.gz
+            cd openssl-1.1.1l
+            ./Configure
+            make install
+            cd ..
       #- run: which pkg-config
       #- run: PKG_CONFIG_PATH=`find /usr/local/Cellar/openssl@1.1 -name pkgconfig` pkg-config --list-all | sort
       - run: find /usr/local/Cellar/openssl@1.1 -name pkgconfig > .pkg-config-path
