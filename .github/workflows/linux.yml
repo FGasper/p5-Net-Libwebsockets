@@ -50,7 +50,6 @@ jobs:
         run: apt --assume-yes install cmake
       - name: Download & install LWS
         run: |
-            cd 
             git clone https://libwebsockets.org/repo/libwebsockets
             cd libwebsockets
             mkdir build
