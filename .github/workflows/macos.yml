@@ -40,12 +40,12 @@ jobs:
 #      - run: PKG_CONFIG_PATH=`cat .pkg-config-path` pkg-config --list-all | grep ssl
       - name: perl -V
         run: perl -V
-#      - name: Install AnyEvent (optional)
-#        run: "curl -L https://cpanmin.us | perl - --notest AnyEvent ||:"
-#      - name: Install IO::Async (optional)
-#        run: "curl -L https://cpanmin.us | perl - --notest IO::Async ||:"
-#      - name: Install Mojolicious (optional)
-#        run: "curl -L https://cpanmin.us | perl - --notest Mojolicious ||:"
+      - name: Install AnyEvent (optional)
+        run: "curl -L https://cpanmin.us | perl - --notest AnyEvent ||:"
+      - name: Install IO::Async (optional)
+        run: "curl -L https://cpanmin.us | perl - --notest IO::Async ||:"
+      - name: Install Mojolicious (optional)
+        run: "curl -L https://cpanmin.us | perl - --notest Mojolicious ||:"
       - name: Install Configure Requires
         run: curl -L https://cpanmin.us | perl - --notest ExtUtils::CChecker ExtUtils::PkgConfig ExtUtils::MakeMaker
       #- run: find /usr/local/Cellar/openssl@1.1 -name pkgconfig
@@ -64,7 +64,7 @@ jobs:
         #run: export PERL_MM_OPT="`cat .perl_mm_opt`"; export LDFLAGS="-L/usr/local/opt/openssl@1.1/lib"; export CPPFLAGS="-I/usr/local/opt/openssl@1.1/include"; export CCFLAGS="-I/usr/local/opt/openssl@1.1/include"; export CFLAGS="-I/usr/local/opt/openssl@1.1/include"; perl Makefile.PL
         run: export PERL_MM_OPT="`cat .perl_mm_opt`"; export LDFLAGS="-L/usr/local/opt/openssl@1.1/lib"; export CFLAGS="-I/usr/local/opt/openssl@1.1/include"; perl Makefile.PL
       - name: make
-        run: 'make || ls -laR && false'
+        run: make
       - name: Run tests (with coverage)
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
