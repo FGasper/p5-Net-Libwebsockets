@@ -13,6 +13,13 @@ BEGIN {
     eval 'use Mojo::Server::Daemon; 1' or plan skip_all => $@;
 }
 
+#use lib './lib';
+#use NLWS_Test;
+
+#NLWS_Test::loopback_can_serve() or do {
+#    plan skip_all => 'Loopback can’t serve … skipping test.';
+#};
+
 use Mojolicious::Lite;
 
 # Normal action
@@ -27,7 +34,7 @@ websocket '/' => sub {
 };
 
 # Connect application with web server and start accepting connections
-my $daemon = Mojo::Server::Daemon->new(app => app, listen => ['http://*:0']);
+my $daemon = Mojo::Server::Daemon->new(app => app, listen => ['http://127.0.0.1:0']);
 
 $daemon->on(request => sub {
     my ($daemon, $tx) = @_;
