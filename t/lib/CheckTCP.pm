@@ -28,23 +28,26 @@ sub via_mojo {
         ($res, $rej) = @_;
     } );
 
+    my $failed;
+
     $client->on(connect => sub {
-        $res->($_[1]);
+        diag __PACKAGE__ . ": Connected OK";
+        $res->();
     } );
     $client->on(error => sub {
-diag explain [@_];
-        $rej->($_[1]);
+        $failed = 1;
+        diag __PACKAGE__ . ": Connect failed: $_[1]";
+        $res->();
     } );
 
-    $client->connect(address => '127.0.0.1', port => $port);
+    $client->connect(
+        address => '127.0.0.1',
+        port => $port,
+    );
 
-    my $err;
-    $promise->then(
-        sub { diag __PACKAGE__ . ": Connected OK" },
-        sub { $err = $_[0] },
-    )->wait(),
+    $promise->wait();
 
-    die __PACKAGE__ . ": Connect failed: $err" if $err;
+    die 'Failed connect' if $failed;
 
     return;
 }
