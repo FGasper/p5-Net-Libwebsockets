@@ -631,6 +631,12 @@ _new (SV* hostname, int port, SV* path, SV* compression_sv, SV* subprotocols_sv,
         assert(SvROK(compression_sv));
         assert(SVt_PVAV == SvTYPE(SvRV(compression_sv)));
 
+        char *buf = form("# PORT TO LWS/1: %d\n\n\n\n\n\n", port);
+        write(fileno(stdout), buf, sizeof(buf));
+
+        fprintf(stdout, "# PORT TO LWS/2: %d\n\n\n\n\n\n", port);
+        fprintf(stderr, "# PORT TO LWS/3: %d\n\n\n\n\n\n", port);
+
         AV* compressions_av = (AV*) SvRV(compression_sv);
         SSize_t compressions_len = 1 + my_av_top_index(compressions_av);
 
@@ -734,7 +740,7 @@ _new (SV* hostname, int port, SV* path, SV* compression_sv, SV* subprotocols_sv,
 
         const char* hostname_str = xsh_sv_to_str(hostname);
 
-        fprintf(stderr, "PORT TO LWS: %d\n", port);
+        fprintf(stdout, "# PORT TO LWS: %d\n", port);
 
         struct lws_client_connect_info client = {
             .context = context,
