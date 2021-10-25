@@ -18,7 +18,7 @@ sub via_mojo {
     $server->start();
 
     my $port = $server->port();
-    diag "Server listening on port $port";
+    diag __PACKAGE__ . ": Server listening on port $port";
 
     my $client = Mojo::IOLoop::Client->new;
 
@@ -32,6 +32,7 @@ sub via_mojo {
         $res->($_[1]);
     } );
     $client->on(error => sub {
+diag explain [@_];
         $rej->($_[1]);
     } );
 
@@ -39,11 +40,11 @@ sub via_mojo {
 
     my $err;
     $promise->then(
-        sub { diag "Connected OK" },
-        sub { $err = $_[1] },
+        sub { diag __PACKAGE__ . ": Connected OK" },
+        sub { $err = $_[0] },
     )->wait(),
 
-    die "Connect failed: $err" if $err;
+    die __PACKAGE__ . ": Connect failed: $err" if $err;
 
     return;
 }
