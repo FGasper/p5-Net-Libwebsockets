@@ -56,6 +56,8 @@ my ($port) = @{ $daemon->ports() };
 
 diag "Port: $port";
 
+Net::Libwebsockets::set_log_level( 0b11111111111 );
+
 my $done_p = Net::Libwebsockets::WebSocket::Client::connect(
     url => "ws://localhost:$port",
     event => 'Mojolicious',
