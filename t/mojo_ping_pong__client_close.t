@@ -9,6 +9,12 @@ use Test::Deep;
 
 use Net::Libwebsockets::WebSocket::Client;
 
+use FindBin;
+use lib "$FindBin::Bin/lib";
+use CheckTCP;
+
+eval { CheckTCP::via_mojo(); 1 } or plan skip_all => $@;
+
 BEGIN {
     eval 'use Mojo::Server::Daemon; 1' or plan skip_all => $@;
 }

@@ -34,6 +34,7 @@ nlws_perl_loop.c
 nlws_perl_loop.h
 ppport.h
 t/anyevent_nxdomain.t
+t/lib/CheckTCP.pm
 t/lib/NLWS_Test.pm
 t/mojo_nxdomain.t
 t/mojo_ping_pong__client_close.t
