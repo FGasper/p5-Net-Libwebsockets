@@ -42,6 +42,12 @@ of the above.
 
 # DESCRIPTION
 
+<div>
+
+</div>
+
+&lt;a href='https://coveralls.io/github/FGasper/p5-Net-Libwebsockets?branch=master'>&lt;img src='https://coveralls.io/repos/github/FGasper/p5-Net-Libwebsockets/badge.svg?branch=master' alt='Coverage Status' />&lt;/a>
+
 This module provides a Perl binding to
 [libwebsockets](https://libwebsockets.org/) (aka “LWS”), a C
 library that provides client and server implementations of
