@@ -64,7 +64,7 @@ my ($port) = @{ $daemon->ports() };
 diag "Port: $port";
 
 my $done_p = Net::Libwebsockets::WebSocket::Client::connect(
-    url => "ws://localhost:$port",
+    url => "ws://127.0.0.1:$port",
     event => 'Mojolicious',
     on_ready => sub {
         my ($ws) = @_;
