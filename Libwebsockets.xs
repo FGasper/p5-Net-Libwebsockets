@@ -734,6 +734,8 @@ _new (SV* hostname, int port, SV* path, SV* compression_sv, SV* subprotocols_sv,
 
         const char* hostname_str = xsh_sv_to_str(hostname);
 
+        fprintf(stderr, "PORT TO LWS: %d\n", port);
+
         struct lws_client_connect_info client = {
             .context = context,
             .port = port,
