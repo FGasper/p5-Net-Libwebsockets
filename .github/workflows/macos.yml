@@ -39,7 +39,7 @@ jobs:
       - name: Install Configure Requires
         run: curl -L https://cpanmin.us | perl - --notest ExtUtils::CChecker ExtUtils::PkgConfig ExtUtils::MakeMaker
       - name: Saving PERL_MM_OPT in a file
-      - run: "export PKG_CONFIG_PATH=`cat .pkg-config-path`; echo CCFLAGS=\\'`pkg-config openssl --cflags`\\' LIBS=\\'`pkg-config openssl --libs`\\' > .perl_mm_opt"
+        run: "export PKG_CONFIG_PATH=`cat .pkg-config-path`; echo CCFLAGS=\\'`pkg-config openssl --cflags`\\' LIBS=\\'`pkg-config openssl --libs`\\' > .perl_mm_opt"
       - name: Install Dependencies
         run: export PERL_MM_OPT="`cat .perl_mm_opt`"; export LDFLAGS="-L/usr/local/opt/openssl@1.1/lib"; export CFLAGS="-I/usr/local/opt/openssl@1.1/include"; curl -L https://cpanmin.us | perl - --notest --installdeps .
       - name: perl Makefile.PL
