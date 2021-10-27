@@ -46,29 +46,57 @@ my @tests = (
     ],
 
     [
-        'ping pong, client closes first',
+        'client closes immediately w/ failure',
+        sub {
+            use utf8;
+
+            my ($ws) = @_;
+
+            $ws->close(1001, 'éé');
+        },
+        undef,
+        undef,
+        sub {
+            my ($err) = @_;
+
+            cmp_deeply(
+                $err,
+                all(
+                    Isa('Net::Libwebsockets::X::WebSocketClose'),
+                    methods(
+                        [ get => 'code' ] => Net::Libwebsockets::CLOSE_STATUS_GOINGAWAY,
+                        [ get => 'reason' ] => do { use utf8; 'éé' },
+                    ),
+                ),
+                'expected rejection',
+            );
+        },
+    ],
+
+    [
+        'ping pong, client closes first (binary messages)',
         sub {
             my ($ws) = @_;
 
-            $ws->on_text( sub {
+            $ws->on_binary( sub {
                 my ($ws, $msg) = @_;
 
                 if ($_[1] > 10) {
                     $ws->close();
                 }
                 else {
-                    $ws->send_text( 1 + $msg );
+                    $ws->send_binary( 1 + $msg );
                 }
             } );
 
-            $ws->send_text(1);
+            $ws->send_binary(1);
         },
         sub {
             my ($c) = shift;
 
             $c->on(
                 message => sub {
-                    $_[0]->send( $_[1] + 1 );
+                    $_[0]->send( { binary => $_[1] + 1 } );
                 },
             );
         },
@@ -80,7 +108,7 @@ my @tests = (
     ],
 
     [
-        'ping pong, server closes first',
+        'ping pong, server closes first (text messages)',
         sub {
             my ($ws) = @_;
 
@@ -121,11 +149,20 @@ for my $t_ar (@tests) {
 
     note $label;
 
-    my $route = websocket '/' => $server;
+    my $route = websocket '/' => $server || sub {
+        my $c = shift;
+
+        # Mojo needs at least one listener or else it
+        # fails weirdly.
+        $c->on( close => sub { } );
+    };
 
     Net::Libwebsockets::WebSocket::Client::connect(
         url => "ws://127.0.0.1:$port",
         event => 'Mojolicious',
+        headers => [
+            'X-Foo' => 'Bar',
+        ],
         on_ready => $client || sub { },
     )->then(
         $pass_cr || sub {

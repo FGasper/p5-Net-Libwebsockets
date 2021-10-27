@@ -36,9 +36,8 @@ ppport.h
 t/anyevent_nxdomain.t
 t/lib/CheckTCP.pm
 t/lib/NLWS_Test.pm
+t/mojo.t
 t/mojo_nxdomain.t
-t/mojo_ping_pong__client_close.t
-t/mojo_ping_pong__server_close.t
 xshelper/README.md
 xshelper/xshelper.c
 xshelper/xshelper.h
