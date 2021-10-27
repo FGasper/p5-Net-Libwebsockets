@@ -8,6 +8,7 @@ use Test::FailWarnings;
 use Test::Deep;
 
 use Net::Libwebsockets::WebSocket::Client;
+use Net::Libwebsockets::Logger;
 
 BEGIN {
     eval 'use Mojo::Server::Daemon; 1' or plan skip_all => $@;
@@ -157,12 +158,15 @@ for my $t_ar (@tests) {
         $c->on( close => sub { } );
     };
 
+    my $logger = Net::Libwebsockets::Logger->new();
+
     Net::Libwebsockets::WebSocket::Client::connect(
         url => "ws://127.0.0.1:$port",
         event => 'Mojolicious',
         headers => [
             'X-Foo' => 'Bar',
         ],
+        logger => $logger,
         on_ready => $client || sub { },
     )->then(
         $pass_cr || sub {
