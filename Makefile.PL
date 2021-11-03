@@ -36,7 +36,7 @@ my $pkg_config_path = $extra_dir && do {
 
     File::Find::find(
         sub {
-            if (m<\.pc\z>) {
+            if (!$path && m<\.pc\z>) {
                 $path = $File::Find::dir;
                 print "pkg-config path appears to be: $path$/";
             }
