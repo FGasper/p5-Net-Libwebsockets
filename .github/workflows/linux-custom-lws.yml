@@ -56,5 +56,5 @@ jobs:
         run: LWS_BUILD_DIR=../my-lws perl Makefile.PL
       - name: make
         run: make
-      - name: Run Tests
-        run: make test
+      - name: Test PMD support
+        run: "perl -Mblib -MTest::More -MNet::Libwebsockets -e'is Net::Libwebsockets::HAS_PMD(), 1, q<per-message deflate support>; done_testing"
