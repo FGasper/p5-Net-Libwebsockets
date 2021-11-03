@@ -25,19 +25,7 @@ jobs:
       fail-fast: false
       matrix:
         perl-version:
-          - 5.34
-          - '5.32'
-          - '5.30'
-          - '5.28'
-          - '5.26'
-          - '5.24'
-          - '5.22'
-          - '5.20'
-          - '5.18'
-          - '5.16'
-          #- '5.14'
-          #- '5.12'
-          #- '5.10'
+          - latest
 
     container:
       image: perldocker/perl-tester:${{ matrix.perl-version }}
@@ -54,10 +42,8 @@ jobs:
             cd libwebsockets
             mkdir build
             cd build
-            cmake ..
-            make install
+            cmake -DCMAKE_INSTALL_PREFIX=`pwd` ..
             cd ../..
-            rm -rf libwebsockets
       - name: Install AnyEvent (optional)
         run: "cpanm --notest AnyEvent ||:"
       - name: Install IO::Async (optional)
@@ -69,7 +55,7 @@ jobs:
       - name: Install Dependencies
         run: cpanm --notest --installdeps .
       - name: perl Makefile.PL
-        run: perl Makefile.PL
+        run: LWS_BUILD_DIR=../libwebsockets/build perl Makefile.PL
       - name: make
         run: make
       - name: Run Tests
