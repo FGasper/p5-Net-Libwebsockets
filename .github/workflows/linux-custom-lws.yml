@@ -32,6 +32,7 @@ jobs:
 
     steps:
       - uses: actions/checkout@v2
+      - run: pwd
       - name: perl -V
         run: perl -V
       - name: Install cmake
@@ -42,7 +43,7 @@ jobs:
             cd libwebsockets
             mkdir build
             cd build
-            cmake -DCMAKE_INSTALL_PREFIX=../../../../my-lws ..
+            cmake -DCMAKE_INSTALL_PREFIX=../../../my-lws ..
             make install
             cd ../..
             rm -rf libwebsockets
@@ -50,6 +51,7 @@ jobs:
         run: cpanm --verbose --notest --installdeps --with-configure .
       #- run: find /github/home/.cpanm/work -name build.log
       #- run: "for f in `find /github/home/.cpanm/work -name build.log`; do echo ========== $f; cat $f; done"
+      - run: pwd
       - name: perl Makefile.PL
         run: LWS_BUILD_DIR=../my-lws perl Makefile.PL
       - name: make
