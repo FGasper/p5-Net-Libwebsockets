@@ -128,12 +128,6 @@ END
     $lws_has_deflate;
 };
 
-#my %env_copy = %ENV;
-#
-#local @ENV{'CFLAGS', 'CCFLAGS'};
-#
-#my @env_cflags = grep { $_ } @env_copy{'CFLAGS', 'CCFLAGS'};
-
 # See lib/ExtUtils/MakeMaker.pm for details of how to influence
 # the contents of the Makefile that is written.
 WriteMakefile(
@@ -185,12 +179,4 @@ WriteMakefile(
     # Loops use __SUB__. May be possible to avoid if compat with older
     # perls is desirable.
     MIN_PERL_VERSION => '5.16.0',
-
-    TEST_REQUIRES => {
-        'Test::More' => 0,
-        'Test::Deep' => 0,
-        'Test::FailWarnings' => 0,
-    },
-
-    NOECHO => q<>,
 );
