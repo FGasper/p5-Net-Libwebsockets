@@ -7,6 +7,8 @@ use ExtUtils::CChecker;
 use ExtUtils::PkgConfig;
 use ExtUtils::MakeMaker::CPANfile;
 
+use File::Find;
+
 my $BUILD_ENV_VAR = 'LWS_BUILD_DIR';
 
 my $extra_dir = $ENV{$BUILD_ENV_VAR};
@@ -29,7 +31,27 @@ my @extra_lddlflags = $extra_dir
     : ()
 ;
 
-local $ENV{'PKG_CONFIG_PATH'} = $extra_dir if $extra_dir;
+my $pkg_config_path = $extra_dir && do {
+    my $path;
+
+    File::Find::find(
+        sub {
+            if (m<\.pc\z>) {
+                $path = $File::Find::dir;
+                print "pkg-config path appears to be: $path$/";
+            }
+        },
+        $extra_dir,
+    );
+
+    if (!$path) {
+        print "Didn’t find any pkg-config files!$/";
+    }
+
+    $path;
+};
+
+local $ENV{'PKG_CONFIG_PATH'} = $pkg_config_path if $pkg_config_path;
 
 my $PKG = 'libwebsockets';
 
