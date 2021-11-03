@@ -55,7 +55,8 @@ jobs:
         run: cpanm --verbose ExtUtils::CChecker ExtUtils::PkgConfig
       - name: Install Dependencies
         run: "export LWS_BUILD_DIR=libwebsockets/build; cpanm --verbose --notest --installdeps . ||:"
-      - run: "cat `find /github/home/.cpanm/work -name build.log`"
+      - run: find /github/home/.cpanm/work -name build.log
+      - run: "for f in `find /github/home/.cpanm/work -name build.log`; do echo ========== $f; cat $f; done"
       - name: perl Makefile.PL
         run: LWS_BUILD_DIR=libwebsockets/build perl Makefile.PL
       - name: make
