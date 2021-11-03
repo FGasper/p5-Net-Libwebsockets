@@ -131,6 +131,10 @@ WriteMakefile(
     # the created Makefile expects xshelper.o to be in the base dir:
     #CCFLAGS => "$Config{'ccflags'} -o \$@",
 
+    # macOS GitHub action needs to set PERL_MM_OPTS,
+    # while gcc needs LIBS to be populated.
+    ( $ENV{'PERL_MM_OPTS'} ? () : ( LIBS => \@libs ) ),
+
     LDDLFLAGS => "@libs @extra_lddlflags $Config{'lddlflags'}",
 
     OBJECT => [
