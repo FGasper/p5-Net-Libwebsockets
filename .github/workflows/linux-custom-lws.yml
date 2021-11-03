@@ -45,14 +45,14 @@ jobs:
             cmake -DCMAKE_INSTALL_PREFIX=`pwd` ..
             make install
             cd ../..
-      - name: Install AnyEvent (optional)
-        run: "cpanm --notest AnyEvent ||:"
-      - name: Install IO::Async (optional)
-        run: "cpanm --notest IO::Async ||:"
-      - name: Install Mojolicious (optional)
-        run: "cpanm --notest Mojolicious ||:"
+#      - name: Install AnyEvent (optional)
+#        run: "cpanm --notest AnyEvent ||:"
+#      - name: Install IO::Async (optional)
+#        run: "cpanm --notest IO::Async ||:"
+#      - name: Install Mojolicious (optional)
+#        run: "cpanm --notest Mojolicious ||:"
       - name: Install Configure Requires
-        run: cpanm ExtUtils::CChecker ExtUtils::PkgConfig
+        run: cpanm --verbose ExtUtils::CChecker ExtUtils::PkgConfig
       - name: Install Dependencies
         run: "export LWS_BUILD_DIR=libwebsockets/build; cpanm --verbose --notest --installdeps . ||:"
       - run: "cat `find /github/home/.cpanm/work -name build.log`"
