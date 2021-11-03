@@ -64,10 +64,10 @@ jobs:
         run: "cpanm --notest IO::Async ||:"
       - name: Install Mojolicious (optional)
         run: "cpanm --notest Mojolicious ||:"
-      - name: Install Configure Requires
-        run: cpanm ExtUtils::CChecker ExtUtils::PkgConfig
+      #- name: Install Configure Requires
+        #run: cpanm ExtUtils::CChecker ExtUtils::PkgConfig
       - name: Install Dependencies
-        run: cpanm --notest --installdeps .
+        run: cpanm --notest --installdeps --with-configure .
       - name: perl Makefile.PL
         run: perl Makefile.PL
       - name: make

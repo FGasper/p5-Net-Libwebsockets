@@ -7,6 +7,7 @@ Libwebsockets.xs
 MANIFEST
 Makefile.PL
 README.md
+cpanfile
 examples/wscat.pl
 examples/wscat_ioasync.pl
 lib/Net/Libwebsockets.pm

@@ -42,23 +42,16 @@ jobs:
             cd libwebsockets
             mkdir build
             cd build
-            cmake -DCMAKE_INSTALL_PREFIX=`pwd` ..
+            cmake -DCMAKE_INSTALL_PREFIX=../../../../my-lws ..
             make install
             cd ../..
-#      - name: Install AnyEvent (optional)
-#        run: "cpanm --notest AnyEvent ||:"
-#      - name: Install IO::Async (optional)
-#        run: "cpanm --notest IO::Async ||:"
-#      - name: Install Mojolicious (optional)
-#        run: "cpanm --notest Mojolicious ||:"
-      - name: Install Configure Requires
-        run: cpanm --verbose ExtUtils::CChecker ExtUtils::PkgConfig
+            rm -rf libwebsockets
       - name: Install Dependencies
-        run: "export LWS_BUILD_DIR=libwebsockets/build; cpanm --verbose --notest --installdeps . ||:"
-      - run: find /github/home/.cpanm/work -name build.log
-      - run: "for f in `find /github/home/.cpanm/work -name build.log`; do echo ========== $f; cat $f; done"
+        run: cpanm --verbose --notest --installdeps --with-configure .
+      #- run: find /github/home/.cpanm/work -name build.log
+      #- run: "for f in `find /github/home/.cpanm/work -name build.log`; do echo ========== $f; cat $f; done"
       - name: perl Makefile.PL
-        run: LWS_BUILD_DIR=libwebsockets/build perl Makefile.PL
+        run: LWS_BUILD_DIR=../my-lws perl Makefile.PL
       - name: make
         run: make
       - name: Run Tests

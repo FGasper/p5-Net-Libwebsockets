@@ -5,7 +5,7 @@ use Config;
 
 use ExtUtils::CChecker;
 use ExtUtils::PkgConfig;
-use ExtUtils::MakeMaker;
+use ExtUtils::MakeMaker::CPANfile;
 
 my $BUILD_ENV_VAR = 'LWS_BUILD_DIR';
 
@@ -146,14 +146,6 @@ WriteMakefile(
         'xshelper/xshelper.o',
     ],
 
-    CONFIGURE_REQUIRES => {
-
-        # In order to specify OBJECT as an array.
-        'ExtUtils::MakeMaker' => 6.84,
-        'ExtUtils::CChecker' => 0,
-        'ExtUtils::PkgConfig' => 0,
-    },
-
     META_MERGE => {
         'meta-spec' => { version => 2 },
         resources => {
@@ -171,12 +163,6 @@ WriteMakefile(
     # Loops use __SUB__. May be possible to avoid if compat with older
     # perls is desirable.
     MIN_PERL_VERSION => '5.16.0',
-
-    PREREQ_PM => {
-        'Promise::XS' => 0,
-        'URI::Split' => 0,
-        'X::Tiny' => 0,
-    },
 
     TEST_REQUIRES => {
         'Test::More' => 0,
