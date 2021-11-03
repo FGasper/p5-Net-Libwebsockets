@@ -43,7 +43,7 @@ jobs:
             cd libwebsockets
             mkdir build
             cd build
-            cmake -DCMAKE_INSTALL_PREFIX=../../../my-lws ..
+            cmake -DCMAKE_INSTALL_PREFIX=../../../my-lws -DLWS_WITHOUT_EXTENSIONS=0 -DLWS_WITH_SYS_ASYNC_DNS=1 ..
             make install
             cd ../..
             rm -rf libwebsockets
