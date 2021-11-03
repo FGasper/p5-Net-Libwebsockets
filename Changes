@@ -2,8 +2,8 @@ Revision history for Perl extension Net::Libwebsockets:
 
 0.03
 - BREAKING CHANGE: on_text() and on_binary() callbacks now receive
-  the courier object. This helps to avoid memory leaks
-  without needing weaken() or other tricks.
+  the courier object as first parameter. This helps to avoid memory
+  leaks without needing weaken() or other tricks.
 - BUG FIX: State X::Tiny as prerequisite.
 - BUG FIX: If the client close()s without a close code, the
   promise-resolution close code is CLOSE_STATUS_NO_STATUS, not 0.
