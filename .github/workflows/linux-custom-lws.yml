@@ -1,4 +1,4 @@
-name: linux
+name: linux-custom-lws
 
 on:
   push:
@@ -43,6 +43,7 @@ jobs:
             mkdir build
             cd build
             cmake -DCMAKE_INSTALL_PREFIX=`pwd` ..
+            make install
             cd ../..
       - name: Install AnyEvent (optional)
         run: "cpanm --notest AnyEvent ||:"
@@ -53,9 +54,9 @@ jobs:
       - name: Install Configure Requires
         run: cpanm ExtUtils::CChecker ExtUtils::PkgConfig
       - name: Install Dependencies
-        run: cpanm --notest --installdeps .
+        run: export LWS_BUILD_DIR=libwebsockets/build; cpanm --verbose --notest --installdeps .
       - name: perl Makefile.PL
-        run: LWS_BUILD_DIR=../libwebsockets/build perl Makefile.PL
+        run: LWS_BUILD_DIR=libwebsockets/build perl Makefile.PL
       - name: make
         run: make
       - name: Run Tests
