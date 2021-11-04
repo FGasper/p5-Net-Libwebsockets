@@ -55,4 +55,4 @@ jobs:
       - name: make
         run: make
       - name: Test PMD support
-        run: "perl -Mblib -MTest::More -MNet::Libwebsockets -e'is Net::Libwebsockets::HAS_PMD(), 1, q<per-message deflate support>; done_testing"
+        run: "perl -Mblib -MTest::More -MNet::Libwebsockets -e'is Net::Libwebsockets::HAS_PMD(), 1, q<per-message deflate support>; done_testing'"
