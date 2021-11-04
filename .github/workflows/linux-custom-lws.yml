@@ -49,8 +49,6 @@ jobs:
             rm -rf libwebsockets
       - name: Install Dependencies
         run: cpanm --verbose --notest --installdeps --with-configure .
-      #- run: find /github/home/.cpanm/work -name build.log
-      #- run: "for f in `find /github/home/.cpanm/work -name build.log`; do echo ========== $f; cat $f; done"
       - run: pwd
       - name: perl Makefile.PL
         run: LWS_BUILD_DIR=../my-lws perl Makefile.PL
