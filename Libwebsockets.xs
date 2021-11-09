@@ -26,13 +26,6 @@
 #define WARN_DESTROY_AT_DESTRUCT(sv) \
     warn("Destroying %" SVf " at global destruction!\n", sv);
 
-#if DEBUG
-//#include <execinfo.h>
-#define LOG_FUNC fprintf(stderr, "%s\n", __func__)
-#else
-#define LOG_FUNC
-#endif
-
 #if defined(LWS_WITHOUT_EXTENSIONS)
 #   define NLWS_LWS_HAS_EXTENSIONS false
 #else
@@ -74,7 +67,7 @@ static inline void _finish_deferred_sv (pTHX_ SV* loop_sv, SV** deferred_svp, co
         NULL,
     };
 
-    SvREFCNT_dec(deferred_sv);
+    NLWS_SvREFCNT_dec(deferred_sv);
 
     xsh_call_object_method_void( aTHX_
         loop_sv,
@@ -86,6 +79,11 @@ static inline void _finish_deferred_sv (pTHX_ SV* loop_sv, SV** deferred_svp, co
 SV* _create_err_obj (pTHX_ const char* type, unsigned argscount, ...) {
     va_list args;
     va_start(args, argscount);
+
+    // If argscount == 1:
+    //  create_args[0] is the type
+    //  create_args[1] is the arg
+    //  create_args[2] is NULL
 
     SV* create_args[argscount+2];
     create_args[0] = newSVpv(type, 0);
@@ -109,7 +107,7 @@ SV* _create_err_obj (pTHX_ const char* type, unsigned argscount, ...) {
 }
 
 void _on_ws_close (pTHX_ my_perl_context_t* my_perl_context, nlws_abstract_loop_t* myloop_p, uint16_t code, size_t reasonlen, const U8* reason) {
-    LOG_FUNC;
+    NLWS_LOG_FUNC;
 
     char* deferred_method;
     SV* promise_value;
@@ -151,7 +149,7 @@ void _on_ws_close (pTHX_ my_perl_context_t* my_perl_context, nlws_abstract_loop_
 }
 
 void _on_ws_error (pTHX_ my_perl_context_t* my_perl_context, nlws_abstract_loop_t* myloop_p, size_t reasonlen, const char* reason) {
-    LOG_FUNC;
+    NLWS_LOG_FUNC;
 
     SV** deferred_svp = &my_perl_context->done_d;
 
@@ -220,7 +218,7 @@ net_lws_wsclient_callback(
 
     case LWS_CALLBACK_WSI_DESTROY:
         if (my_perl_context->courier_sv) {
-            SvREFCNT_dec(my_perl_context->courier_sv);
+            NLWS_SvREFCNT_dec(my_perl_context->courier_sv);
         }
 
         break;
@@ -259,7 +257,7 @@ net_lws_wsclient_callback(
             if (failed) break;
         }
 
-        SvREFCNT_dec(my_perl_context->headers_ar);
+        NLWS_SvREFCNT_dec(my_perl_context->headers_ar);
 
         if (failed) return -1;
 
@@ -284,7 +282,7 @@ net_lws_wsclient_callback(
             "on_ready"
         );
 
-        SvREFCNT_dec(my_perl_context->on_ready);
+        NLWS_SvREFCNT_dec(my_perl_context->on_ready);
 
         } break;
 
@@ -619,7 +617,21 @@ _get_timeout( UV lws_context_uv )
 void
 _lws_context_destroy( UV lws_context_uv )
     CODE:
+        if (DEBUG) fprintf(stderr, "freeing LWS context: %p\n", (void*) lws_context_uv);
+
+        struct lws_context* cx = lws_context_uv;
+
+        struct lws_log_cx* log_cx = lwsl_context_get_cx(cx);
+
+        nlws_logger_opaque_t* opaque = NULL;
+        if (log_cx) {
+            opaque = log_cx->opaque;
+        }
+
         lws_context_destroy( (struct lws_context*) lws_context_uv );
+        if (DEBUG) fprintf(stderr, "freeing LWS context DONE: %p\n", (void*) lws_context_uv);
+
+        if (opaque) NLWS_SvREFCNT_dec(opaque->perlobj);
 
 MODULE = Net::Libwebsockets     PACKAGE = Net::Libwebsockets::WebSocket::Client
 
@@ -685,7 +697,7 @@ _new (SV* hostname, int port, SV* path, SV* compression_sv, SV* subprotocols_sv,
         // This function never croaks; it only rejects the promise.
         // We thus bump the promise’s refcount here.
         //
-        SvREFCNT_inc(done_d);
+        NLWS_SvREFCNT_inc(done_d);
 
         struct lws_context *context = lws_create_context(&info);
         if (!context) {
@@ -757,8 +769,9 @@ _new (SV* hostname, int port, SV* path, SV* compression_sv, SV* subprotocols_sv,
             return;
         }
 
-        SvREFCNT_inc(on_ready_sv);
-        SvREFCNT_inc(headers_ar);
+        NLWS_SvREFCNT_inc(on_ready_sv);
+        NLWS_SvREFCNT_inc(headers_ar);
+        if (log_cx) NLWS_SvREFCNT_inc(logger_obj);
 
 # ----------------------------------------------------------------------
 
@@ -779,7 +792,7 @@ DESTROY (SV* self_sv)
             lws_rx_flow_control(courier->wsi, 1);
         }
 
-        SvREFCNT_dec(my_pause->courier_sv);
+        NLWS_SvREFCNT_dec(my_pause->courier_sv);
 
         Safefree(my_pause);
 
@@ -794,7 +807,7 @@ on_text (SV* self_sv, SV* cbref)
     CODE:
         courier_t* courier = xsh_svrv_to_ptr(self_sv);
 
-        SvREFCNT_inc(cbref);
+        NLWS_SvREFCNT_inc(cbref);
 
         courier->on_text_count++;
         Renew(courier->on_text, courier->on_text_count, SV*);
@@ -805,7 +818,7 @@ on_binary (SV* self_sv, SV* cbref)
     CODE:
         courier_t* courier = xsh_svrv_to_ptr(self_sv);
 
-        SvREFCNT_inc(cbref);
+        NLWS_SvREFCNT_inc(cbref);
 
         courier->on_binary_count++;
         Renew(courier->on_binary, courier->on_binary_count, SV*);
@@ -842,7 +855,7 @@ pause (SV* self_sv)
         Newx(my_pause, 1, pause_t);
 
         my_pause->courier_sv = self_sv;
-        SvREFCNT_inc(self_sv);
+        NLWS_SvREFCNT_inc(self_sv);
 
         if (!courier->pauses) {
             lws_rx_flow_control(courier->wsi, 0);
@@ -912,7 +925,11 @@ _new (SV* classname_sv, SV* level_sv, SV* callback)
         lws_log_cx_t* my_logger_p;
         Newx(my_logger_p, 1, lws_log_cx_t);
 
-        SV* cb_or_null = (callback && SvOK(callback)) ? SvREFCNT_inc(callback) : NULL;
+        SV* cb_or_null = NULL;
+        if (callback && SvOK(callback)) {
+            NLWS_SvREFCNT_inc(callback);
+            cb_or_null = callback;
+        }
 
         nlws_logger_opaque_t* opaque;
         Newx(opaque, 1, nlws_logger_opaque_t);
@@ -922,7 +939,11 @@ _new (SV* classname_sv, SV* level_sv, SV* callback)
         *opaque = (nlws_logger_opaque_t) {
             PERL_CONTEXT_IN_STRUCT
             .pid = getpid(),
-            .perlobj = self_sv,
+
+            // This has to be the RV rather than the reference (self_sv)
+            // to avoid a need to bump the reference count, which would
+            // effect a reference cycle.
+            .perlobj = SvRV(self_sv),
         };
 
         *my_logger_p = (lws_log_cx_t) {
@@ -949,6 +970,8 @@ _new (SV* classname_sv, SV* level_sv, SV* callback)
 void
 DESTROY (SV* self_sv)
     CODE:
+        NLWS_LOG_FUNC;
+
         lws_log_cx_t* my_logger_p = xsh_svrv_to_ptr(self_sv);
 
         if (my_logger_p->opaque) {
@@ -958,7 +981,7 @@ DESTROY (SV* self_sv)
                 WARN_DESTROY_AT_DESTRUCT(self_sv);
             }
 
-            if (opaque->callback) SvREFCNT_dec(opaque->callback);
+            if (opaque->callback) NLWS_SvREFCNT_dec(opaque->callback);
 
             Safefree(opaque);
         }

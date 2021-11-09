@@ -7,6 +7,8 @@ use parent 'Net::Libwebsockets::Loop';
 
 use feature 'current_sub';
 
+use constant DEBUG => 0;
+
 use Net::Libwebsockets ();
 use Net::Libwebsockets::Loop::FD ();
 
@@ -49,7 +51,9 @@ sub _create_set_timer_cr {
 sub add_fd {
     my ($self, $fd) = @_;
 
-    my $perl_fd = Net::Libwebsockets::Loop::FD::fd_to_fh($fd);
+    DEBUG && printf STDERR "%s, FD %d\n", (caller 0)[3], $fd;
+
+    my $fh = Net::Libwebsockets::Loop::FD::fd_to_fh($fd);
 
     my $ctx = $self->{'lws_context'};
 
@@ -58,10 +62,12 @@ sub add_fd {
     $self->{'fd_handle'}{$fd} = IO::Async::Handle->new(
         handle => $fh,
         on_read_ready => sub {
+            DEBUG && printf STDERR "%s - FD %d readable\n", __PACKAGE__, $fd;
             Net::Libwebsockets::_lws_service_fd_read($ctx, $fd);
             &$set_timer_cr;
         },
         on_write_ready => sub {
+            DEBUG && printf STDERR "%s - FD %d writable\n", __PACKAGE__, $fd;
             Net::Libwebsockets::_lws_service_fd_write($ctx, $fd);
             &$set_timer_cr;
         },
@@ -83,10 +89,14 @@ sub add_to_fd {
     };
 
     if ($_[2] & Net::Libwebsockets::_LWS_EV_READ) {
+        DEBUG && printf STDERR "%s, FD %d - read\n", (caller 0)[3], $_[1];
+
         $handle->want_readready(1);
     }
 
     if ($_[2] & Net::Libwebsockets::_LWS_EV_WRITE) {
+        DEBUG && printf STDERR "%s, FD %d - write\n", (caller 0)[3], $_[1];
+
         $handle->want_writeready(1);
     }
 
@@ -98,10 +108,12 @@ sub remove_from_fd {
 
     if (my $handle = $_[0]->{'fd_handle'}{$_[1]}) {
         if ($_[2] & Net::Libwebsockets::_LWS_EV_READ) {
+            DEBUG && printf STDERR "%s, FD %d - read\n", (caller 0)[3], $_[1];
             $handle->want_readready(0);
         }
 
         if ($_[2] & Net::Libwebsockets::_LWS_EV_WRITE) {
+            DEBUG && printf STDERR "%s, FD %d - write\n", (caller 0)[3], $_[1];
             $handle->want_writeready(0);
         }
     }
@@ -114,6 +126,8 @@ sub remove_from_fd {
 
 sub remove_fd {
     my ($self, $fd) = @_;
+
+    DEBUG && printf STDERR "%s, FD %d\n", (caller 0)[3], $fd;
 
     if (my $handle = delete $self->{'fd_handle'}{$fd}) {
         $self->{'loop'}->remove($handle);

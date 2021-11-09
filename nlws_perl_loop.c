@@ -31,7 +31,7 @@ init_pt_custom (struct lws_context *cx, void *_loop, int tsi) {
 
     myloop_p->lws_context = cx;
 
-    SvREFCNT_inc(myloop_p->perlobj);
+    NLWS_SvREFCNT_inc(myloop_p->perlobj);
 
     return 0;
 }
@@ -139,7 +139,7 @@ custom_destroy_pt (struct lws_context *cx, int tsi) {
 
     PERL_CONTEXT_FROM_STRUCT(myloop_p);
 
-    SvREFCNT_dec(myloop_p->perlobj);
+    NLWS_SvREFCNT_dec(myloop_p->perlobj);
 }
 
 const struct lws_event_loop_ops event_loop_ops_custom = {

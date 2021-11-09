@@ -4,6 +4,29 @@
 #include "EXTERN.h"
 #include "perl.h"
 
+#define NLWS_DEBUG 0
+
+// ----------------------------------------------------------------------
+// These simplify the hunt for reference-counting errors:
+
+#define NLWS_SvREFCNT_inc(sv) \
+    if (NLWS_DEBUG) fprintf(stderr, "%s: SvREFCNT_inc(%p, from %d refs)\n", __func__, sv, SvREFCNT(sv)); \
+    SvREFCNT_inc(sv);
+
+#define NLWS_SvREFCNT_dec(sv) STMT_START { \
+    if (NLWS_DEBUG) fprintf(stderr, "%s: SvREFCNT_dec(%p, from %d refs)\n", __func__, sv, SvREFCNT(sv)); \
+    SvREFCNT_dec(sv); \
+    if (NLWS_DEBUG) fprintf(stderr, "after %s SvREFCNT_dec(%p)\n", __func__, sv); \
+} STMT_END
+
+// ----------------------------------------------------------------------
+
+#if NLWS_DEBUG
+#define NLWS_LOG_FUNC fprintf(stderr, "%s\n", __func__)
+#else
+#define NLWS_LOG_FUNC
+#endif
+
 #define MAX_CLOSE_REASON_LENGTH 123
 
 #define DEFAULT_POLL_TIMEOUT (5 * 60 * 1000)

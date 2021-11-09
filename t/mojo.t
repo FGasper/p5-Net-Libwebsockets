@@ -10,6 +10,9 @@ use Test::Deep;
 use Net::Libwebsockets::WebSocket::Client;
 use Net::Libwebsockets::Logger;
 
+use Promise::XS;
+$Promise::XS::DETECT_MEMORY_LEAKS = 1;
+
 BEGIN {
     eval 'use Mojo::Server::Daemon; 1' or plan skip_all => $@;
 }
@@ -160,26 +163,51 @@ for my $t_ar (@tests) {
 
     my $logger = Net::Libwebsockets::Logger->new();
 
-    Net::Libwebsockets::WebSocket::Client::connect(
-        url => "ws://127.0.0.1:$port",
-        event => 'Mojolicious',
-        headers => [
-            'X-Foo' => 'Bar',
+    my @event_settings = (
+        [
+            ('Mojolicious') x 2,
+            sub { Mojo::IOLoop->start() },
+            sub { Mojo::IOLoop->stop() },
         ],
-        logger => $logger,
-        on_ready => $client || sub { },
-    )->then(
-        $pass_cr || sub {
-            fail "unexpected success: $_[0]";
-        },
-        $fail_cr || sub {
-            fail "unexpected failure: $_[0]";
-        },
-    )->finally(
-        sub { Mojo::IOLoop->stop(); },
     );
 
-    Mojo::IOLoop->start();
+    if (eval { require IO::Async::Loop::Mojo }) {
+        my $loop = IO::Async::Loop::Mojo->new();
+        push @event_settings, [
+            'IO::Async',
+            [ IOAsync => $loop ],
+            sub { $loop->run() },
+            sub { $loop->stop() },
+        ];
+    }
+    else {
+        note "Install IO::Async::Loop::Mojo to test IO::Async.";
+    }
+
+    for my $event_setting (@event_settings) {
+        my ($label, $event_opt, $start_cr, $end_cr) = @$event_setting;
+
+        note "Event interface: $label";
+
+        Net::Libwebsockets::WebSocket::Client::connect(
+            url => "ws://127.0.0.1:$port",
+            event => $event_opt,
+            headers => [
+                'X-Foo' => 'Bar',
+            ],
+            logger => $logger,
+            on_ready => $client || sub { },
+        )->then(
+            $pass_cr || sub {
+                fail "unexpected success: $_[0]";
+            },
+            $fail_cr || sub {
+                fail "unexpected failure: $_[0]";
+            },
+        )->finally( $end_cr );
+
+        $start_cr->();
+    }
 
     $route->remove();
     app()->routes()->cache(Mojo::Cache->new);

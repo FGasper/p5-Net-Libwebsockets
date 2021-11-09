@@ -1,7 +1,18 @@
+#include "nlws.h"
 #include "nlws_courier.h"
 #include "nlws_frame.h"
 
+#define DEBUG 1
+
+#if DEBUG
+#define LOG_FUNC fprintf(stderr, "%s\n", __func__)
+#else
+#define LOG_FUNC
+#endif
+
 courier_t* nlws_create_courier (pTHX_ struct lws *wsi) {
+    LOG_FUNC;
+
     struct lws_ring *ring = lws_ring_create(
         sizeof(frame_t),
         RING_DEPTH,
@@ -27,9 +38,11 @@ courier_t* nlws_create_courier (pTHX_ struct lws *wsi) {
 }
 
 void nlws_destroy_courier (pTHX_ courier_t* courier) {
+    LOG_FUNC;
+
     if (courier->on_text) {
         for (unsigned i=0; i<courier->on_text_count; i++) {
-            SvREFCNT_dec(courier->on_text[i]);
+            NLWS_SvREFCNT_dec(courier->on_text[i]);
         }
 
         Safefree(courier->on_text);
@@ -37,7 +50,7 @@ void nlws_destroy_courier (pTHX_ courier_t* courier) {
 
     if (courier->on_binary) {
         for (unsigned i=0; i<courier->on_binary_count; i++) {
-            SvREFCNT_dec(courier->on_binary[i]);
+            NLWS_SvREFCNT_dec(courier->on_binary[i]);
         }
 
         Safefree(courier->on_binary);

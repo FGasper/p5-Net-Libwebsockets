@@ -21,6 +21,8 @@ my $url = $ARGV[0] or die "Need URL!\n";
 
     $_->blocking(0) for (\*STDIN, \*STDOUT);
 
+    Net::Libwebsockets::set_log_level(0);
+
     Net::Libwebsockets::WebSocket::Client::connect(
         url => $url,
         event => [ 'IOAsync', $loop ],
