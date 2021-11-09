@@ -22,26 +22,18 @@ jobs:
 
     steps:
       - uses: actions/checkout@v2
-      - name: Set up Perl & LWS
-        run: brew install perl libwebsockets
+      - name: perl -V
+        run: perl -V
+      - name: Set up LWS
+        run: brew install libwebsockets
       - name: Link Homebrew OpenSSL
         run: ln -s /usr/local/Cellar/openssl@1.1/include/openssl /usr/local/include
       - name: Saving PKG_CONFIG_PATH in a file
         run: find /usr/local/Cellar/openssl@1.1 -name pkgconfig > .pkg-config-path
-      - name: perl -V
-        run: perl -V
-      - name: Install AnyEvent (optional)
-        run: "curl -L https://cpanmin.us | perl - --notest AnyEvent ||:"
-      - name: Install IO::Async (optional)
-        run: "curl -L https://cpanmin.us | perl - --notest IO::Async ||:"
-      - name: Install Mojolicious (optional)
-        run: "curl -L https://cpanmin.us | perl - --notest Mojolicious ||:"
-#      - name: Install Configure Requires
-#        run: curl -L https://cpanmin.us | perl - --notest ExtUtils::CChecker ExtUtils::PkgConfig ExtUtils::MakeMaker
       - name: Saving PERL_MM_OPT in a file
         run: "export PKG_CONFIG_PATH=`cat .pkg-config-path`; echo CCFLAGS=\\'`pkg-config openssl --cflags`\\' LIBS=\\'`pkg-config openssl --libs`\\' > .perl_mm_opt"
       - name: Install Dependencies
-        run: export PERL_MM_OPT="`cat .perl_mm_opt`"; export LDFLAGS="-L/usr/local/opt/openssl@1.1/lib"; export CFLAGS="-I/usr/local/opt/openssl@1.1/include"; curl -L https://cpanmin.us | perl - --notest --installdeps --with-configure .
+        run: export PERL_MM_OPT="`cat .perl_mm_opt`"; export LDFLAGS="-L/usr/local/opt/openssl@1.1/lib"; export CFLAGS="-I/usr/local/opt/openssl@1.1/include"; curl -L https://cpanmin.us | perl - --notest --installdeps --with-configure --with-develop .
       - name: perl Makefile.PL
         run: export PERL_MM_OPT="`cat .perl_mm_opt`"; export LDFLAGS="-L/usr/local/opt/openssl@1.1/lib"; export CFLAGS="-I/usr/local/opt/openssl@1.1/include"; perl Makefile.PL
       - name: make

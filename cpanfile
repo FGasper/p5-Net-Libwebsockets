@@ -10,3 +10,8 @@ requires 'X::Tiny', 0;
 test_requires 'Test::More', 0;
 test_requires 'Test::Deep', 0;
 test_requires 'Test::FailWarnings', 0;
+
+author_requires 'AnyEvent', 0;
+author_requires 'IO::Async', 0;
+author_requires 'Mojolicious', 0;
+author_requires 'IO::Async::Loop::Mojo', 0;

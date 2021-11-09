@@ -58,16 +58,8 @@ jobs:
             make install
             cd ../..
             rm -rf libwebsockets
-      - name: Install AnyEvent (optional)
-        run: "cpanm --notest AnyEvent ||:"
-      - name: Install IO::Async (optional)
-        run: "cpanm --notest IO::Async ||:"
-      - name: Install Mojolicious (optional)
-        run: "cpanm --notest Mojolicious ||:"
-      #- name: Install Configure Requires
-        #run: cpanm ExtUtils::CChecker ExtUtils::PkgConfig
       - name: Install Dependencies
-        run: cpanm --notest --installdeps --with-configure .
+        run: cpanm --notest --installdeps --with-configure --with-develop .
       - name: perl Makefile.PL
         run: perl Makefile.PL
       - name: make
