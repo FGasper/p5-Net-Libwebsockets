@@ -25,25 +25,11 @@ void _MY_xsh_call_sv_trap_void (pTHX_ SV* cbref, SV** args, const char *warnpref
 //----------------------------------------------------------------------
 
 /*
-    Returns a boolean that indicates whether the byte string in `sv`
-    matches `b`. `b` is assumed to be NUL-terminated.
-
-    Croaks if `sv` is a reference.
-*/
-bool xsh_sv_streq (pTHX_ SV* sv, const char* b);
-
-/*
     Like SvPVbyte_nolen but croaks if `sv`’s string contains a NUL byte
     or if `sv` is a reference.
 */
 #define xsh_sv_to_str(sv) _MY_xsh_sv_to_str(aTHX_ sv, false)
 char* _MY_xsh_sv_to_str (pTHX_ SV* sv, bool is_utf8);
-
-/*
-    Like SvPVutf8_nolen but croaks if `sv`’s string contains a NUL byte
-    or if `sv` is a reference.
-*/
-#define xsh_sv_to_utf8_str(sv) _MY_xsh_sv_to_str(aTHX_ sv, true)
 
 /*
     Like L<perlapi/SvUV> but croaks if `sv` isn’t a simple unsigned integer.

@@ -17,21 +17,6 @@ SV* _MY_xsh_ptr_to_svrv (pTHX_ void* ptr, HV* stash) {
 
 /* ---------------------------------------------------------------------- */
 
-bool xsh_sv_streq (pTHX_ SV* sv, const char* b) {
-    if (SvROK(sv)) _CROAK_STRINGIFY_REFERENCE(sv);
-
-    if (SvOK(sv)) {
-        STRLEN alen;
-        const char* a = SvPVbyte(sv, alen);
-
-        if (NULL != memchr(a, '\0', alen)) {
-            return strEQ(a, b);
-        }
-    }
-
-    return false;
-}
-
 char* _MY_xsh_sv_to_str (pTHX_ SV* sv, bool is_utf8) {
     if (SvROK(sv)) _CROAK_STRINGIFY_REFERENCE(sv);
 

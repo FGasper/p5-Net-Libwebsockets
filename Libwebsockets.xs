@@ -913,10 +913,10 @@ PROTOTYPES: DISABLE
 SV*
 _new (SV* classname_sv, SV* level_sv, SV* callback)
     CODE:
-        U32 level;
+        IV level;
 
         if (SvOK(level_sv)) {
-            level = xsh_sv_to_uv(level_sv);
+            level = xsh_sv_to_iv(level_sv);
         }
         else {
             level = nlws_get_global_lwsl_level();
