@@ -15,3 +15,4 @@ author_requires 'AnyEvent', 0;
 author_requires 'IO::Async', 0;
 author_requires 'Mojolicious', 0;
 author_requires 'IO::Async::Loop::Mojo', 0;
+author_requires 'AnyEvent::WebSocket::Server', 0;
