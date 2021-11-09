@@ -172,6 +172,8 @@ for my $t_ar (@tests) {
     );
 
     if (eval { require IO::Async::Loop::Mojo }) {
+        _rewrite_broken_later_method_rt_139999();
+
         my $loop = IO::Async::Loop::Mojo->new();
         push @event_settings, [
             'IO::Async',
@@ -239,4 +241,18 @@ sub _start_daemon {
     diag "Port: $port";
 
     return ($daemon, $port);
+}
+
+sub _rewrite_broken_later_method_rt_139999 {
+    no warnings 'once';
+    *IO::Async::Loop::Mojo::later = sub {
+        my ($self, $cb) = @_;
+
+        $self->watch_time(
+            after => 0,
+            code => $cb,
+        );
+    };
+
+    return;
 }

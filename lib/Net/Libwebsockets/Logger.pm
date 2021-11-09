@@ -30,6 +30,8 @@ main documentation describes.
 
 use Carp;
 
+use Net::Libwebsockets;
+
 #----------------------------------------------------------------------
 
 =head1 METHODS

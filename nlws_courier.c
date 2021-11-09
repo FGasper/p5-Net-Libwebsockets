@@ -2,7 +2,7 @@
 #include "nlws_courier.h"
 #include "nlws_frame.h"
 
-#define DEBUG 1
+#define DEBUG 0
 
 #if DEBUG
 #define LOG_FUNC fprintf(stderr, "%s\n", __func__)
