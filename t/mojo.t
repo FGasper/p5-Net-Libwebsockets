@@ -244,7 +244,7 @@ sub _start_daemon {
 }
 
 sub _rewrite_broken_later_method_rt_139999 {
-    no warnings 'once';
+    no warnings ('once', 'redefine');
     *IO::Async::Loop::Mojo::later = sub {
         my ($self, $cb) = @_;
 
