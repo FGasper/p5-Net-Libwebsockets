@@ -97,6 +97,7 @@ for my $t_ar (@tests) {
 
     my $logger = Net::Libwebsockets::Logger->new(
         callback => sub { push @logs, [@_] },
+        level => 0b1111111111111,
     );
 
     my $cv = AnyEvent->condvar();
