@@ -12,7 +12,7 @@
 
 #include <arpa/inet.h>
 
-#define DEBUG 0
+#define DEBUG 1
 
 #include "xshelper/xshelper.h"
 
@@ -339,6 +339,7 @@ net_lws_wsclient_callback(
         } break;
 
     case LWS_CALLBACK_CLIENT_RECEIVE: {
+        if (DEBUG) fprintf(stderr, "Received %d byte(s): %.*s\n", len, len, in);
 
         if (lws_is_first_fragment(wsi)) {
 
