@@ -114,6 +114,7 @@ for my $t_ar (@tests) {
         url => "ws://127.0.0.1:$port",
         event => 'AnyEvent',
         logger => $logger,
+        subprotocols => [ 'foo', 'bar' ],
         on_ready => $client || sub { },
     )->then(
         $pass_cr || sub {
