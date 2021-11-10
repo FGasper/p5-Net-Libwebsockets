@@ -168,7 +168,6 @@ my @tests = (
                 'expected messages',
             ) or do {
                 require Data::Dumper;
-                local $Data::Dumper::Useqq = 1;
                 diag Data::Dumper::Dumper(\%scratch);
             };
 
