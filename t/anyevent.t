@@ -146,7 +146,12 @@ my @tests = (
 
             $handle->push_write($_) for @frames;
 
-            $connection->close(1000);
+            $handle->on_drain( sub {
+                my ($handle) = @_;
+                $handle->on_drain();
+
+                $connection->close(1000);
+            } );
         },
         sub {
             my ($code_reason) = @_;
