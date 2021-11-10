@@ -94,7 +94,7 @@ my @tests = (
                     fin => 0,
                 ],
                 [
-                    buffer => 'paaaa',
+                    buffer => 'pa',
                     type => 'continuation',
                     fin => 0,
                 ],
@@ -108,30 +108,41 @@ my @tests = (
             for (@frames) {
                 $_ = Protocol::WebSocket::Frame->new(
                     @$_,
-                    masked => 1,
                 )->to_bytes()
             }
 
-            use Data::Dumper;
-            $Data::Dumper::Useqq = 1;
-            print STDERR Dumper \@frames;
+            $handle->push_write($_) for @frames;
 
-warn if !eval {
-use lib '/Users/felipe/code/p5-Net-Websocket/lib';
-use lib '/Users/felipe/code/p5-IO-Framed/lib';
-use Net::WebSocket::Parser;
-use IO::Framed;
+            # ------------------------------
 
-for my $f (@frames) {
-    pipe my $rfh, my $wfh;
-    syswrite $wfh, $f;
-    close $wfh;
-    my $iof = IO::Framed->new($rfh);
-    my $parse = Net::WebSocket::Parser->new($iof);
-    my $frame = $parse->get_next_frame();
-print STDERR Dumper [$frame, $frame->get_payload()];
-}
-1; };
+            @frames = (
+                [
+                    buffer => 'four-',
+                    type => 'binary',
+                    fin => 0,
+                ],
+                [
+                    buffer => 'p',
+                    type => 'continuation',
+                    fin => 0,
+                ],
+                [
+                    buffer => 'a',
+                    type => 'continuation',
+                    fin => 0,
+                ],
+                [
+                    buffer => 'rt',
+                    type => 'continuation',
+                    fin => 1,
+                ],
+            );
+
+            for (@frames) {
+                $_ = Protocol::WebSocket::Frame->new(
+                    @$_,
+                )->to_bytes()
+            }
 
             $handle->push_write($_) for @frames;
 
@@ -146,6 +157,7 @@ print STDERR Dumper [$frame, $frame->get_payload()];
                     messages => [
                         'two-part',
                         'three-part',
+                        'four-part',
                     ],
                 },
                 'expected messages',
