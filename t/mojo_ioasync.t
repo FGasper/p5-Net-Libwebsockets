@@ -21,6 +21,8 @@ use Mojolicious::Lite;
 
 my ($daemon, $port) = _start_daemon();
 
+my %scratch;
+
 my @tests = (
     [
         'server closes immediately w/ failure',
@@ -146,6 +148,83 @@ my @tests = (
             is( $reason, q<>, 'reason as expected' );
         },
     ],
+
+    [
+        'server sends fragmented messages',
+        sub {
+            my ($ws) = @_;
+
+            $ws->on_binary( sub {
+                my ($ws, $msg) = @_;
+                push @{ $scratch{'messages'} }, $msg;
+            } );
+        },
+
+        sub {
+            my ($c) = shift;
+
+            $c->send(
+                [ 0, (0) x 3, 2, 'two-' ],
+            );
+
+            $c->send(
+                [ 1, (0) x 3, 0, 'part' ],
+            );
+
+            # --------------------
+
+            $c->send(
+                [ 0, (0) x 3, 2, 'three-' ],
+            );
+
+            $c->send(
+                [ 0, (0) x 3, 0, 'pa' ],
+            );
+
+            $c->send(
+                [ 1, (0) x 3, 0, 'rt' ],
+            );
+
+            # --------------------
+
+            $c->send(
+                [ 0, (0) x 3, 2, 'four-' ],
+            );
+
+            $c->send(
+                [ 0, (0) x 3, 0, 'p' ],
+            );
+
+            $c->send(
+                [ 0, (0) x 3, 0, 'a' ],
+            );
+
+            $c->send(
+                [ 1, (0) x 3, 0, 'rt' ],
+            );
+
+            $c->finish();
+        },
+
+        sub {
+            my ($code, $reason) = @{ shift() };
+
+            is_deeply(
+                \%scratch,
+                {
+                    messages => [
+                        'two-part',
+                        'three-part',
+                        'four-part',
+                    ],
+                },
+                'messages as expected',
+            );
+
+            is( $code, Net::Libwebsockets::CLOSE_STATUS_NO_STATUS, 'code as expected' );
+            is( $reason, q<>, 'reason as expected' );
+        },
+    ],
 );
 
 for my $t_ar (@tests) {
@@ -188,6 +267,8 @@ for my $t_ar (@tests) {
 
     for my $event_setting (@event_settings) {
         my ($label, $event_opt, $start_cr, $end_cr) = @$event_setting;
+
+        %scratch = ();
 
         note "Event interface: $label";
 
