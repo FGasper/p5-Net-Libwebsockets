@@ -30,20 +30,6 @@ char* _MY_xsh_sv_to_str (pTHX_ SV* sv, bool is_utf8) {
     return str;
 }
 
-UV _MY_xsh_sv_to_uv (pTHX_ SV* sv) {
-    if (SvROK(sv)) _CROAK_STRINGIFY_REFERENCE(sv);
-
-    if (SvUOK(sv)) return SvUV(sv);
-
-    UV myuv = SvUV(sv);
-
-    SV* sv2 = newSVuv(myuv);
-
-    if (sv_eq(sv, sv2)) return myuv;
-
-    croak("`%" SVf "` given where unsigned integer expected!", sv);
-}
-
 IV _MY_xsh_sv_to_iv (pTHX_ SV* sv) {
     if (SvROK(sv)) _CROAK_STRINGIFY_REFERENCE(sv);
 
