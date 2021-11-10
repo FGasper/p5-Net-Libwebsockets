@@ -85,7 +85,7 @@ my @tests = (
             $ws->on_binary( sub {
                 my ($ws, $msg) = @_;
 
-                if ($_[1] > 10) {
+                if ($msg > 10) {
                     $ws->close();
                 }
                 else {
