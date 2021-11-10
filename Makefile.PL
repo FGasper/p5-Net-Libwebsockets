@@ -147,9 +147,12 @@ WriteMakefile(
     # the created Makefile expects xshelper.o to be in the base dir:
     #CCFLAGS => "$Config{'ccflags'} -o \$@",
 
-    # macOS GitHub action needs to set PERL_MM_OPT,
-    # while gcc needs LIBS to be populated.
-    ( $ENV{'PERL_MM_OPT'} ? () : ( LIBS => "@libs" ) ),
+    # macOS GitHub action needs to set LIBS via PERL_MM_OPT for
+    # OpenSSL; its compiler can get -lwebsockets from LDDLFLAGS.
+    #
+    # gcc, though, needs LIBS to contain -lwebsockets.
+    #
+    ( $ENV{'NLWS_IS_MACOS_CI'} ? () : ( LIBS => "@libs" ) ),
 
     LDDLFLAGS => "@libs @extra_lddlflags $Config{'lddlflags'}",
 
