@@ -12,7 +12,7 @@ test_requires 'Test::Deep', 0;
 test_requires 'Test::FailWarnings', 0;
 
 author_requires 'AnyEvent', 0;
-author_requires 'IO::Async', 0;
-author_requires 'Mojolicious', 0;
-author_requires 'IO::Async::Loop::Mojo', 0;
 author_requires 'AnyEvent::WebSocket::Server', 0;
+author_requires 'IO::Async', 0;
+$^V ge v5.16.0 && author_requires 'Mojolicious', 0;
+$^V ge v5.16.0 && author_requires 'IO::Async::Loop::Mojo', 0;
